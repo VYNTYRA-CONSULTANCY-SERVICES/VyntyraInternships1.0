@@ -21,12 +21,15 @@ const API_BASE = "https://vyntyrainternships-backend.onrender.com/api";
 // Live Razorpay public key
 const RAZORPAY_KEY = "rzp_live_SUgru3eERmlvUC";
 const PAYMENT_PENDING_APP_KEY = "vyntyra_pending_application_id";
+const RAZORPAY_SDK_ID = "razorpay-checkout-sdk";
 
 // Fee amount in INR
 const APPLICATION_FEE = 499;
 
 let applicationData = {};
 let isPaymentConfirmed = false;
+let razorpaySdkPromise;
+let paymentInfraWarmed = false;
 
 // Keep backend alive by pinging every 5 minutes (prevents Render cold start)
 function startKeepAliveTimer() {
@@ -83,6 +86,29 @@ async function readJsonResponse(response, operationLabel) {
   } catch (error) {
     throw new Error(`${operationLabel}. Invalid JSON response from backend.`);
   }
+}
+
+function getBackendOrigin() {
+  return API_BASE.replace(/\/api\/?$/, "");
+}
+
+function warmPaymentInfrastructure() {
+  if (paymentInfraWarmed) {
+    return;
+  }
+  paymentInfraWarmed = true;
+
+  loadRazorpaySDK().catch(() => {
+    // Silent: primary flow handles SDK load errors during payment.
+  });
+
+  fetch(`${getBackendOrigin()}/keep-alive`, {
+    method: "GET",
+    cache: "no-store",
+    keepalive: true,
+  }).catch(() => {
+    // Silent: this is only a warm-up ping.
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -152,6 +178,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // Attach payment button click handler
   if (payBtn) {
     payBtn.classList.add("visible");
+    payBtn.addEventListener("mouseenter", warmPaymentInfrastructure, { once: true });
+    payBtn.addEventListener("focus", warmPaymentInfrastructure, { once: true });
+    payBtn.addEventListener("touchstart", warmPaymentInfrastructure, { once: true });
     payBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -180,18 +209,53 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Load Razorpay SDK
   loadRazorpaySDK();
+
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(warmPaymentInfrastructure, { timeout: 1500 });
+  } else {
+    setTimeout(warmPaymentInfrastructure, 1200);
+  }
 });
 
 /**
  * Load Razorpay JavaScript SDK
  */
 function loadRazorpaySDK() {
+  if (window.Razorpay) {
+    return Promise.resolve();
+  }
+
+  if (razorpaySdkPromise) {
+    return razorpaySdkPromise;
+  }
+
+  const existingScript = document.getElementById(RAZORPAY_SDK_ID);
+  if (existingScript) {
+    razorpaySdkPromise = new Promise((resolve, reject) => {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Failed to load Razorpay SDK")), { once: true });
+      if (window.Razorpay) {
+        resolve();
+      }
+    });
+    return razorpaySdkPromise;
+  }
+
   const script = document.createElement("script");
+  script.id = RAZORPAY_SDK_ID;
   script.src = "https://checkout.razorpay.com/v1/checkout.js";
-  script.onerror = () => {
-    console.error("Failed to load Razorpay SDK");
-  };
+  script.async = true;
+
+  razorpaySdkPromise = new Promise((resolve, reject) => {
+    script.onload = () => resolve();
+    script.onerror = () => {
+      razorpaySdkPromise = undefined;
+      reject(new Error("Failed to load Razorpay SDK"));
+    };
+  });
+
   document.head.appendChild(script);
+  return razorpaySdkPromise;
 }
 
 /**
@@ -379,6 +443,8 @@ function openPaymentGatewayModal() {
     setFormStatus(statusEl, "Please complete all required fields before selecting payment gateway.", "warning");
     return;
   }
+
+  warmPaymentInfrastructure();
 
   modal.classList.add("is-open");
   modal.setAttribute("aria-hidden", "false");
