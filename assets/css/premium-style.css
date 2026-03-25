@@ -1498,6 +1498,204 @@ body {
   padding-top: 1rem;
 }
 
+/* Duration & Pricing Section (within form) - SIMPLIFIED */
+.duration-pricing-section {
+  grid-column: 1 / -1;
+  padding: 1rem;
+  margin: 0.5rem 0;
+  border-radius: 0.78rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(2, 6, 20, 0.5);
+}
+
+.duration-pricing-header {
+  margin-bottom: 0.8rem;
+}
+
+.duration-pricing-header h3 {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: rgba(247, 249, 255, 0.92);
+  letter-spacing: 0.02em;
+}
+
+.duration-pricing-subtitle {
+  font-size: 0.85rem;
+  color: rgba(247, 249, 255, 0.65);
+  margin: 0;
+}
+
+.duration-subsection,
+.addons-subsection {
+  margin-bottom: 0.75rem;
+}
+
+.subsection-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(247, 249, 255, 0.88);
+  letter-spacing: 0.01em;
+}
+
+/* Duration Options - Simple Radio Buttons */
+.duration-options-inline {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 800px) {
+  .duration-options-inline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .duration-options-inline {
+    grid-template-columns: 1fr;
+  }
+}
+
+.duration-option-inline {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.duration-option-inline input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.duration-option-inline input:checked + .duration-card-inline {
+  border-color: rgba(123, 225, 255, 0.75);
+  background: rgba(123, 225, 255, 0.08);
+}
+
+.duration-card-inline {
+  flex: 1;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.65rem;
+  background: rgba(2, 6, 20, 0.88);
+  text-align: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.duration-card-inline:hover {
+  border-color: rgba(123, 225, 255, 0.45);
+  background: rgba(2, 6, 20, 0.95);
+}
+
+.duration-label-inline {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(247, 249, 255, 0.75);
+  margin-bottom: 0.25rem;
+}
+
+.duration-price-inline {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #7be1ff;
+}
+
+.popular-badge {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #ffc94b;
+  letter-spacing: 0.03em;
+}
+
+/* Add-ons Section - Simple Checkboxes */
+.addons-list-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.addon-option-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(2, 6, 20, 0.88);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.88rem;
+  color: rgba(247, 249, 255, 0.82);
+}
+
+.addon-option-inline:hover {
+  border-color: rgba(123, 225, 255, 0.35);
+  background: rgba(2, 6, 20, 0.95);
+}
+
+.addon-option-inline input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #7be1ff;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.addon-option-inline span {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.addon-option-inline strong {
+  color: #7be1ff;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+/* Price Summary - Simple Box */
+.price-summary-inline {
+  margin-top: 0.75rem;
+  padding: 0.8rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(123, 225, 255, 0.2);
+  background: rgba(123, 225, 255, 0.05);
+}
+
+.price-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0;
+  font-size: 0.85rem;
+  color: rgba(247, 249, 255, 0.75);
+}
+
+.price-total-inline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-top: 1px solid rgba(123, 225, 255, 0.15);
+  margin-top: 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #7be1ff;
+}
+
 .form-footer p {
   margin: 0;
   color: rgba(247, 249, 255, 0.8);

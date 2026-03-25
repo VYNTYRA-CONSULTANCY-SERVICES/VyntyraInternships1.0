@@ -6,6 +6,7 @@ const paymentSchema = new mongoose.Schema({
     ref: "Application",
     required: true,
     unique: true,
+    index: true,
   },
   razorpayOrderId: {
     type: String,
@@ -17,6 +18,7 @@ const paymentSchema = new mongoose.Schema({
     type: String,
     unique: true,
     sparse: true,
+    index: true,
   },
   razorpaySignature: {
     type: String,
@@ -26,6 +28,7 @@ const paymentSchema = new mongoose.Schema({
   amount: {
     type: Number,
     required: true,
+    index: true,
   },
   gateway: {
     type: String,
@@ -43,6 +46,7 @@ const paymentSchema = new mongoose.Schema({
     type: String,
     unique: true,
     sparse: true,
+    index: true,
   },
   payuHash: {
     type: String,
@@ -60,6 +64,7 @@ const paymentSchema = new mongoose.Schema({
     type: String,
     enum: ["pending", "completed", "failed"],
     default: "pending",
+    index: true,
   },
   method: {
     type: String,
@@ -81,16 +86,26 @@ const paymentSchema = new mongoose.Schema({
   timestamp: {
     type: Date,
     sparse: true,
+    index: true,
   },
   createdAt: {
     type: Date,
     default: () => new Date(),
+    index: true,
   },
   updatedAt: {
     type: Date,
     default: () => new Date(),
+    index: true,
   },
 });
+
+// Compound indexes for faster queries
+paymentSchema.index({ applicationId: 1, status: 1 });
+paymentSchema.index({ razorpayOrderId: 1, status: 1 });
+paymentSchema.index({ payuTxnId: 1, status: 1 });
+paymentSchema.index({ gateway: 1, status: 1 });
+paymentSchema.index({ createdAt: -1 }); // For recent payments query
 
 paymentSchema.pre("save", function (next) {
   this.updatedAt = new Date();

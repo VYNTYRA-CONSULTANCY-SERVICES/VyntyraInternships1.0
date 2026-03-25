@@ -514,8 +514,8 @@
               </label>
               <label>
                 Preferred Domain
-                <select name="preferred_domain" required>
-                  <option value="">Select a track</option>
+                <select name="preferred_domain" id="preferred_domain" required>
+                  <option value="">Select a track first to unlock duration & pricing</option>
                   <optgroup label="Full Stack Development">
                     <option value="Full Stack - MERN">MERN Stack</option>
                     <option value="Full Stack - Frontend">Frontend Development</option>
@@ -543,6 +543,79 @@
                   </optgroup>
                 </select>
               </label>
+
+              <!-- Duration & Pricing Selection - Appears after domain selection -->
+              <div id="duration-pricing-section" class="duration-pricing-section" style="display: none;">
+                <div class="duration-pricing-header">
+                  <h3>📅 Select Your Internship Duration & Add-ons</h3>
+                  <p class="duration-pricing-subtitle" id="domain-pricing-subtitle"></p>
+                </div>
+
+                <!-- Duration Selection -->
+                <div class="duration-subsection">
+                  <label class="subsection-label">Choose Duration</label>
+                  <div class="duration-options-inline">
+                    <label class="duration-option-inline">
+                      <input type="radio" name="duration" value="1.5" data-price="1999" />
+                      <div class="duration-card-inline">
+                        <div class="duration-label-inline">1.5 Months</div>
+                        <div class="duration-price-inline">₹1,999</div>
+                      </div>
+                    </label>
+                    <label class="duration-option-inline">
+                      <input type="radio" name="duration" value="2" data-price="2999" checked />
+                      <div class="duration-card-inline">
+                        <div class="duration-label-inline">2 Months</div>
+                        <div class="duration-price-inline">₹2,999</div>
+                        <span class="popular-badge">Most Popular</span>
+                      </div>
+                    </label>
+                    <label class="duration-option-inline">
+                      <input type="radio" name="duration" value="3" data-price="3999" />
+                      <div class="duration-card-inline">
+                        <div class="duration-label-inline">3 Months</div>
+                        <div class="duration-price-inline">₹3,999</div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Add-ons Section -->
+                <div class="addons-subsection">
+                  <label class="subsection-label">Add-ons (Optional)</label>
+                  <div class="addons-list-inline">
+                    <label class="addon-option-inline">
+                      <input type="checkbox" name="addon" value="workshop" data-addon-price="199" />
+                      <span>Workshop Certificate from Company - <strong>₹199</strong></span>
+                    </label>
+                    <label class="addon-option-inline">
+                      <input type="checkbox" name="addon" value="mock-interviews" data-addon-price="499" />
+                      <span>Mock Interviews (5-10 interviews) - <strong>₹499</strong></span>
+                    </label>
+                    <label class="addon-option-inline">
+                      <input type="checkbox" name="addon" value="resume-enhancing" data-addon-price="0" />
+                      <span>Resume Enhancing - <strong>Free</strong></span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Price Summary -->
+                <div class="price-summary-inline">
+                  <div class="price-row">
+                    <span>Base Price:</span>
+                    <span id="base-price-inline">₹2,999</span>
+                  </div>
+                  <div class="price-row">
+                    <span>Add-ons:</span>
+                    <span id="addons-price-inline">₹0</span>
+                  </div>
+                  <div class="price-total-inline">
+                    <span>Total:</span>
+                    <span id="total-price-inline">₹2,999</span>
+                  </div>
+                </div>
+              </div>
+
               <label>
                 Communication Language
                 <textarea name="languages" rows="2" placeholder="English, Hindi, Telugu..." required></textarea>

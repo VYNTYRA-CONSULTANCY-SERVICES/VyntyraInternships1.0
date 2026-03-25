@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import compression from "compression";
 import path from "path";
 import dotenv from "dotenv";
 
@@ -59,8 +60,14 @@ const corsOptions = {
 
 app.use(helmet());
 app.use(cors(corsOptions));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(compression()); // Enable gzip compression for responses
+app.use(express.json({ limit: "10mb" })); // Increase payload limit for large files
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Keep-alive endpoint for Render (prevents cold start)
+app.get("/keep-alive", (_req, res) => {
+  res.json({ status: "alive", timestamp: Date.now() });
+});
 
 const uploadsDir = process.env.UPLOAD_DIR ?? "uploads";
 app.use("/uploads", express.static(path.resolve(process.cwd(), uploadsDir)));
@@ -85,14 +92,17 @@ app.use((err, req, res, next) => {
 
 const PORT = Number(process.env.PORT ?? 4000);
 
+// Start server first (non-blocking approach for Render)
+app.listen(PORT, () => {
+  console.log(`Listening on port ${PORT}`);
+});
+
+// Initialize database and background services in parallel (non-blocking)
 connectDB(process.env.MONGODB_URI)
-  .then(async () => {
-    await startBackgroundServices();
-    app.listen(PORT, () => {
-      console.log(`Listening on port ${PORT}`);
-    });
-  })
   .catch((error) => {
-    console.error("Failed to start server", error);
+    console.error("MongoDB connection failed", error);
     process.exit(1);
   });
+
+// Start background services without blocking - fallbacks are handled
+startBackgroundServices();

@@ -28,6 +28,20 @@ const APPLICATION_FEE = 499;
 let applicationData = {};
 let isPaymentConfirmed = false;
 
+// Keep backend alive by pinging every 5 minutes (prevents Render cold start)
+function startKeepAliveTimer() {
+  setInterval(async () => {
+    try {
+      await fetch(`${API_BASE.replace('/api', '')}/keep-alive`, { method: 'GET' }).catch(() => {});
+    } catch (error) {
+      // Silently fail - this is just for keep-alive
+    }
+  }, 5 * 60 * 1000); // 5 minutes
+}
+
+// Initialize keep-alive on page load
+document.addEventListener('DOMContentLoaded', startKeepAliveTimer, { once: true });
+
 async function apiFetch(path, options = {}) {
   const { expectsJson = true, ...fetchOptions } = options;
 
@@ -95,27 +109,41 @@ document.addEventListener("DOMContentLoaded", () => {
     submitApplication();
   });
 
-  // Show duration modal for Full Stack and Data & Intelligence tracks
+  // Show duration & pricing section for ALL tracks (after domain selection)
   if (domainSelect) {
     domainSelect.addEventListener("change", (e) => {
       const selectedValue = String(e.target.value || "");
-      const isFullStackOrData =
-        selectedValue.includes("Full Stack") ||
-        selectedValue.includes("Data Science") ||
-        selectedValue.includes("Data Analytics") ||
-        selectedValue.includes("AI/ML") ||
-        selectedValue.includes("Analytics Engineering");
-
-      if (isFullStackOrData) {
-        // Prefer dedicated modal helper; fallback keeps popup functional.
-        if (typeof showDurationModal === "function") {
-          showDurationModal();
-        } else {
-          const modal = document.getElementById("duration-modal");
-          if (modal) {
-            modal.classList.add("is-open");
-            modal.setAttribute("aria-hidden", "false");
+      const durationPricingSection = document.getElementById("duration-pricing-section");
+      const domainSubtitle = document.getElementById("domain-pricing-subtitle");
+      
+      if (selectedValue) {
+        // Show duration & pricing section after domain selection
+        if (durationPricingSection) {
+          durationPricingSection.style.display = "block";
+          
+          // Update subtitle with selected domain
+          if (domainSubtitle) {
+            domainSubtitle.textContent = `Selected: ${selectedValue}`;
           }
+          
+          // Reset duration to 2 months (default)
+          const durationRadios = document.querySelectorAll('input[name="duration"]');
+          durationRadios.forEach(radio => {
+            if (radio.value === "2") {
+              radio.checked = true;
+            }
+          });
+          
+          // Clear add-ons selection and update price
+          const addonCheckboxes = document.querySelectorAll('input[name="addon"]');
+          addonCheckboxes.forEach(checkbox => checkbox.checked = false);
+          
+          updatePriceSummary();
+        }
+      } else {
+        // Hide duration section if no domain selected
+        if (durationPricingSection) {
+          durationPricingSection.style.display = "none";
         }
       }
     });
@@ -137,6 +165,18 @@ document.addEventListener("DOMContentLoaded", () => {
   } else {
     console.error("Payment button not found in DOM");
   }
+
+  // Setup duration and add-ons price updates
+  const durationRadios = document.querySelectorAll('input[name="duration"]');
+  const addonCheckboxes = document.querySelectorAll('input[name="addon"]');
+  
+  durationRadios.forEach(radio => {
+    radio.addEventListener("change", updatePriceSummary);
+  });
+  
+  addonCheckboxes.forEach(checkbox => {
+    checkbox.addEventListener("change", updatePriceSummary);
+  });
 
   // Load Razorpay SDK
   loadRazorpaySDK();
@@ -211,6 +251,47 @@ function setupResumeHelpModal() {
       closeModal();
     }
   });
+}
+
+/**
+ * Update price summary based on duration and add-ons selection
+ */
+function updatePriceSummary() {
+  const selectedDurationRadio = document.querySelector('input[name="duration"]:checked');
+  const addonCheckboxes = document.querySelectorAll('input[name="addon"]:checked');
+  
+  let basePrice = 2999; // Default 2 months
+  if (selectedDurationRadio) {
+    basePrice = parseInt(selectedDurationRadio.dataset.price || "2999");
+  }
+  
+  let addonsTotal = 0;
+  addonCheckboxes.forEach(checkbox => {
+    addonsTotal += parseInt(checkbox.dataset.addonPrice || "0");
+  });
+  
+  const totalPrice = basePrice + addonsTotal;
+  
+  // Update display elements (inline version)
+  const basePriceEl = document.getElementById("base-price-inline");
+  const addonsPriceEl = document.getElementById("addons-price-inline");
+  const totalPriceEl = document.getElementById("total-price-inline");
+  
+  if (basePriceEl) basePriceEl.textContent = `₹${basePrice.toLocaleString()}`;
+  if (addonsPriceEl) addonsPriceEl.textContent = `₹${addonsTotal.toLocaleString()}`;
+  if (totalPriceEl) totalPriceEl.textContent = `₹${totalPrice.toLocaleString()}`;
+  
+  // Update hidden form fields
+  const durationField = document.getElementById("selected_duration");
+  const addonsField = document.getElementById("selected_addons");
+  const priceField = document.getElementById("internship_price");
+  
+  if (durationField) durationField.value = selectedDurationRadio?.value || "2";
+  if (addonsField) {
+    const selectedAddons = Array.from(addonCheckboxes).map(cb => cb.value).join(", ");
+    addonsField.value = selectedAddons;
+  }
+  if (priceField) priceField.value = totalPrice;
 }
 
 function setFormStatus(statusEl, message, tone = "info") {
@@ -396,7 +477,7 @@ async function initiatePayment(gateway = "razorpay") {
   const formData = new FormData(form);
 
   try {
-    setFormStatus(statusEl, "Preparing payment...", "info");
+    setFormStatus(statusEl, "Preparing payment gateway...", "info");
     payBtn.disabled = true;
 
     // Ensure valid form and create application record before payment order.
@@ -406,7 +487,7 @@ async function initiatePayment(gateway = "razorpay") {
 
     let applicationId = applicationData?.applicationId;
     if (!applicationId) {
-      setFormStatus(statusEl, "Saving your application details...", "info");
+      setFormStatus(statusEl, "Saving your details...", "info");
       applicationData = await createApplicationRecord(form);
       applicationId = applicationData?.applicationId;
       if (!applicationId) {
@@ -424,7 +505,12 @@ async function initiatePayment(gateway = "razorpay") {
       return;
     }
 
-    // Create Razorpay order on backend
+    // Create Razorpay order on backend with timeout
+    const orderController = new AbortController();
+    const timeoutId = setTimeout(() => orderController.abort(), 15000); // 15 second timeout
+
+    setFormStatus(statusEl, "Loading payment method...", "info");
+    
     const orderResponse = await apiFetch("/payments/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -432,13 +518,17 @@ async function initiatePayment(gateway = "razorpay") {
         applicationId,
         amount: amountToPay,
       }),
+      signal: orderController.signal,
     });
 
+    clearTimeout(timeoutId);
     const orderData = await readJsonResponse(orderResponse, "Payment order request failed");
 
     if (!orderResponse.ok) {
       throw new Error(orderData.message || "Failed to create payment order");
     }
+
+    setFormStatus(statusEl, "Opening secure payment window...", "info");
 
     // Configure Razorpay checkout
     const options = {
@@ -469,17 +559,19 @@ async function initiatePayment(gateway = "razorpay") {
 
     // Open Razorpay checkout
     if (!window.Razorpay) {
-  throw new Error("Razorpay SDK not loaded. Please refresh page.");
-}
+      throw new Error("Razorpay SDK not loaded. Please refresh page.");
+    }
 
-const razorpay = new window.Razorpay(options);
+    const razorpay = new window.Razorpay(options);
     razorpay.open();
   } catch (error) {
     const message = error instanceof TypeError
       ? "Payment Error: Unable to reach payment server. Please retry in a few seconds."
-      : /HTML page instead of API JSON|non-JSON response|Invalid JSON response/i.test(String(error?.message || ""))
-        ? "Payment Error: API endpoint misconfigured. Please ensure the Render backend /api/payments routes are reachable."
-        : `Payment Error: ${error.message}`;
+      : error?.name === 'AbortError'
+        ? "Payment Error: Server took too long to respond. Please retry."
+        : /HTML page instead of API JSON|non-JSON response|Invalid JSON response/i.test(String(error?.message || ""))
+          ? "Payment Error: API endpoint misconfigured. Please ensure the Render backend /api/payments routes are reachable."
+          : `Payment Error: ${error.message}`;
     setFormStatus(statusEl, message, "error");
     console.error(error);
     payBtn.disabled = false;
@@ -494,7 +586,11 @@ async function verifyPayment(paymentResponse, applicationId) {
   const payBtn = document.getElementById("pay-registration-fee-btn");
 
   try {
-    setFormStatus(statusEl, "Verifying payment...", "info");
+    setFormStatus(statusEl, "Confirming your payment...", "info");
+
+    // Add timeout for verification 
+    const verifyController = new AbortController();
+    const timeoutId = setTimeout(() => verifyController.abort(), 20000); // 20 second timeout
 
     const verifyResponse = await apiFetch("/payments/verify", {
       method: "POST",
@@ -504,8 +600,10 @@ async function verifyPayment(paymentResponse, applicationId) {
         razorpayPaymentId: paymentResponse.razorpay_payment_id,
         razorpaySignature: paymentResponse.razorpay_signature,
       }),
+      signal: verifyController.signal,
     });
 
+    clearTimeout(timeoutId);
     const verifyResult = await readJsonResponse(verifyResponse, "Payment verification request failed");
 
     if (!verifyResponse.ok) {
@@ -514,7 +612,10 @@ async function verifyPayment(paymentResponse, applicationId) {
 
     setPaymentConfirmedState("Razorpay", applicationId);
   } catch (error) {
-    setFormStatus(statusEl, `Verification failed: ${error.message}. Please contact support.`, "error");
+    const message = error?.name === 'AbortError'
+      ? "Verification took too long. Payment may still be processing. Please refresh."
+      : `Verification failed: ${error.message}. Please contact support.`;
+    setFormStatus(statusEl, message, "error");
     console.error(error);
     payBtn.disabled = false;
   }

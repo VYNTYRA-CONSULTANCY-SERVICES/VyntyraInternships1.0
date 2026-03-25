@@ -69,21 +69,28 @@ const buildPayUResponseHashString = (payload, salt, key) => {
 };
 
 const runPostPaymentWorkflow = async ({ paymentId, applicationId }) => {
+  // Non-blocking - don't wait for this to complete
   try {
-    await publishJob("payment-success", {
+    const publishSuccess = await publishJob("payment-success", {
       applicationId: applicationId.toString(),
       paymentId: paymentId.toString(),
     });
-  } catch (queueError) {
-    console.warn("Queue failed, running inline", queueError?.message);
-    try {
-      await handlePaymentSuccess({
+    
+    if (!publishSuccess) {
+      console.warn("Queue failed, running inline");
+      // Fire and forget inline handler
+      handlePaymentSuccess({
         applicationId: applicationId.toString(),
         paymentId: paymentId.toString(),
-      });
-    } catch (err) {
-      console.warn("Inline handler failed", err?.message);
+      }).catch(err => console.warn("Inline handler failed", err?.message));
     }
+  } catch (queueError) {
+    console.warn("Queue error", queueError?.message);
+    // Fire and forget inline handler
+    handlePaymentSuccess({
+      applicationId: applicationId.toString(),
+      paymentId: paymentId.toString(),
+    }).catch(err => console.warn("Inline handler failed", err?.message));
   }
 };
 
@@ -342,9 +349,8 @@ router.post("/verify", async (req, res, next) => {
       return res.status(400).json({ message: "Missing payment details" });
     }
 
-    // ✅ Verify signature
+    // Verify signature quickly
     const body = razorpayOrderId + "|" + razorpayPaymentId;
-
     const expectedSignature = crypto
       .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
       .update(body)
@@ -356,41 +362,25 @@ router.post("/verify", async (req, res, next) => {
       });
     }
 
-    // ✅ Fetch payment details from Razorpay
-    const paymentDetails = await razorpay.payments.fetch(razorpayPaymentId);
-
-    let cardLast4 = null;
-    if (paymentDetails.card_id) {
-      try {
-        const cardDetails = await razorpay.cards.fetch(paymentDetails.card_id);
-        cardLast4 = cardDetails?.last4 ?? null;
-      } catch (error) {
-        console.warn("Unable to fetch card details", error?.message);
-      }
+    // Find payment record immediately and return success
+    const payment = await Payment.findOne({ razorpayOrderId });
+    if (!payment) {
+      return res.status(404).json({ message: "Payment record not found" });
     }
 
-    // ✅ Update Payment DB
-    const payment = await Payment.findOneAndUpdate(
+    // Update payment and application in parallel (don't wait for both)
+    const updatePaymentPromise = Payment.findOneAndUpdate(
       { razorpayOrderId },
       {
         razorpayPaymentId,
         razorpaySignature,
         status: "completed",
-        method: paymentDetails.method || null,
-        vpa: paymentDetails.vpa || null,
-        cardLast4,
-        contact: paymentDetails.contact || null,
-        timestamp: new Date(paymentDetails.created_at * 1000),
+        timestamp: new Date(),
       },
       { new: true }
     );
 
-    if (!payment) {
-      return res.status(404).json({ message: "Payment record not found" });
-    }
-
-    // ✅ Update Application
-    const application = await Application.findByIdAndUpdate(
+    const updateApplicationPromise = Application.findByIdAndUpdate(
       payment.applicationId,
       {
         status: "COMPLETED_AND_PAID",
@@ -399,15 +389,66 @@ router.post("/verify", async (req, res, next) => {
       { new: true }
     );
 
-    await runPostPaymentWorkflow({
-      applicationId: application._id,
-      paymentId: payment._id,
+    // Fetch payment details from Razorpay without blocking response
+    const fetchCardPromise = razorpay.payments
+      .fetch(razorpayPaymentId)
+      .then(async (paymentDetails) => {
+        let cardLast4 = null;
+        if (paymentDetails.card_id) {
+          try {
+            const cardDetails = await razorpay.cards.fetch(paymentDetails.card_id);
+            cardLast4 = cardDetails?.last4 ?? null;
+          } catch (error) {
+            console.warn("Unable to fetch card details", error?.message);
+          }
+        }
+        return { paymentDetails, cardLast4 };
+      })
+      .catch(error => {
+        console.warn("Unable to fetch Razorpay payment details", error?.message);
+        return null;
+      });
+
+    // Return success immediately while other operations continue
+    const [updatedPayment, updatedApplication] = await Promise.all([
+      updatePaymentPromise,
+      updateApplicationPromise,
+    ]);
+
+    res.json({
+      message: "Payment verified successfully",
+      applicationId: updatedApplication._id,
+      status: updatedApplication.status,
     });
 
-    return res.json({
-      message: "Payment verified successfully",
-      applicationId: application._id,
-      status: application.status,
+    // Continue with additional updates asynchronously (non-blocking)
+    fetchCardPromise.then(async (result) => {
+      if (result) {
+        const { paymentDetails, cardLast4 } = result;
+        try {
+          await Payment.findOneAndUpdate(
+            { razorpayOrderId },
+            {
+              method: paymentDetails.method || null,
+              vpa: paymentDetails.vpa || null,
+              cardLast4,
+              contact: paymentDetails.contact || null,
+            }
+          );
+        } catch (error) {
+          console.warn("Failed to update payment additional details", error?.message);
+        }
+      }
+
+      // Run post-payment workflow asynchronously
+      try {
+        await runPostPaymentWorkflow({
+          applicationId: updatedApplication._id,
+          paymentId: updatedPayment._id,
+        });
+      } catch (error) {
+        console.warn("Post-payment workflow failed", error?.message);
+      }
     });
 
   } catch (error) {

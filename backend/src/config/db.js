@@ -12,12 +12,27 @@ const connectDB = async (uri) => {
 
   try {
     await mongoose.connect(connectionString, {
-      serverSelectionTimeoutMS: 10000,
+      // Connection pooling - maintain up to 10 connections
+      maxPoolSize: 10,
+      minPoolSize: 2,
+      // Timeout settings for better performance
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 5000,
+      // Retry settings
+      retryWrites: true,
+      maxAttempts: 3,
+      // Create connection early
+      waitQueueTimeoutMS: 10000,
     });
     console.log(`MongoDB connected to ${mongoose.connection.name}`);
+    
+    // Optimize queries with indexes
+    mongoose.set('strictPopulate', false);
   } catch (error) {
     console.error("MongoDB connection failed", error);
-    throw error;
+    // Don't block server startup - fail asynchronously
+    setTimeout(() => process.exit(1), 5000);
   }
 };
 
