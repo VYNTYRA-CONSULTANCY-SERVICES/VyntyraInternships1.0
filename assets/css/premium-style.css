@@ -564,8 +564,58 @@ body {
 .intake-section,
 .journey-section,
 .goals-section,
+.pricing-section,
 .apply-section {
   margin: 4rem 0;
+}
+
+.pricing-section {
+  border: 1px solid rgba(123, 225, 255, 0.2);
+  border-radius: 1.7rem;
+  padding: clamp(1.3rem, 2.5vw, 2.2rem);
+  background:
+    radial-gradient(circle at 15% -15%, rgba(123, 225, 255, 0.18), transparent 45%),
+    radial-gradient(circle at 85% 120%, rgba(255, 201, 75, 0.16), transparent 46%),
+    linear-gradient(160deg, rgba(8, 16, 36, 0.9), rgba(6, 12, 28, 0.95));
+  box-shadow: 0 24px 54px rgba(2, 8, 24, 0.45);
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+}
+
+.pricing-card {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 1.2rem;
+  padding: 1.2rem;
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    linear-gradient(160deg, rgba(9, 18, 38, 0.94), rgba(6, 14, 32, 0.96));
+}
+
+.pricing-card h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.pricing-amount {
+  margin: 0.6rem 0 0.5rem;
+  font-size: 1.85rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.pricing-card.is-featured {
+  border-color: rgba(255, 201, 75, 0.55);
+  box-shadow: 0 14px 36px rgba(255, 107, 127, 0.18);
+}
+
+.pricing-note {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  text-align: center;
 }
 
 .edge-section {
