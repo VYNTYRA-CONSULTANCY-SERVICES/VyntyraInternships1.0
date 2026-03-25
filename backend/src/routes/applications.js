@@ -5,6 +5,7 @@ import path from "path";
 
 import Application from "../models/Application.js";
 import { publishJob } from "../services/rabbitmq.js";
+import { sendWelcomeEmail } from "../services/email.js";
 import { handleResumeUpload } from "../jobs/handlers.js";
 
 const router = Router();
@@ -115,6 +116,11 @@ if (!consent) {
     };
 
     const application = await Application.create(document);
+
+    // Keep application flow reliable even if SMTP is temporarily unavailable.
+    await sendWelcomeEmail(application.email, application.fullName).catch((error) => {
+      console.error("Failed to send welcome email:", error?.message || error);
+    });
 
     if (req.file) {
       try {

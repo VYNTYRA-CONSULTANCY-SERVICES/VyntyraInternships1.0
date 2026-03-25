@@ -20,6 +20,7 @@ let activeApiBase = UNIQUE_API_BASE_CANDIDATES.find(Boolean) || "";
 const API_BASE = "https://vyntyrainternships-backend.onrender.com/api";
 // Live Razorpay public key
 const RAZORPAY_KEY = "rzp_live_SUgru3eERmlvUC";
+const PAYMENT_PENDING_APP_KEY = "vyntyra_pending_application_id";
 
 // Fee amount in INR
 const APPLICATION_FEE = 499;
@@ -75,6 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const payBtn = document.getElementById("pay-registration-fee-btn");
   const submitBtn = form?.querySelector('button[type="submit"]');
   const domainSelect = form?.querySelector('select[name="preferred_domain"]');
+  const paymentGatewayModal = document.getElementById("payment-gateway-modal");
 
   if (!form || !payBtn || !submitBtn) {
     console.error("Application form controls not found in DOM");
@@ -83,6 +85,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Pay-first flow: submit unlocks only after successful payment verification.
   submitBtn.disabled = true;
+
+  handlePayURedirectState();
+  setupPaymentGatewayModal(paymentGatewayModal);
 
   // Handle form submission via JS
   form.addEventListener("submit", (e) => {
@@ -122,7 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
     payBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      initiatePayment();
+      openPaymentGatewayModal();
       return false;
     });
     
@@ -211,10 +216,120 @@ function setupResumeHelpModal() {
 function setFormStatus(statusEl, message, tone = "info") {
   if (!statusEl) return;
 
-  const toneClasses = ["is-info", "is-success", "is-warning", "is-error", "is-animated"];
+  const toneClasses = ["is-info", "is-success", "is-warning", "is-error", "is-animated", "is-celebration"];
   statusEl.classList.remove(...toneClasses);
   statusEl.textContent = message;
   statusEl.classList.add(`is-${tone}`, "is-animated");
+}
+
+function showPaymentConfirmationGreeting(gatewayLabel) {
+  const statusEl = document.querySelector(".form-status");
+  setFormStatus(
+    statusEl,
+    `Payment confirmed via ${gatewayLabel}. Welcome aboard! Your seat is secured, now click Submit Application to complete onboarding.`,
+    "success"
+  );
+
+  if (statusEl) {
+    statusEl.classList.add("is-celebration");
+  }
+}
+
+function setPaymentConfirmedState(gatewayLabel, applicationIdFromGateway) {
+  const payBtn = document.getElementById("pay-registration-fee-btn");
+  const submitBtn = document.querySelector(".apply-form button[type='submit']");
+  isPaymentConfirmed = true;
+
+  if (applicationIdFromGateway) {
+    applicationData.applicationId = applicationIdFromGateway;
+  }
+
+  if (payBtn) {
+    payBtn.disabled = true;
+    payBtn.textContent = `Payment Confirmed (${gatewayLabel})`;
+  }
+
+  if (submitBtn) {
+    submitBtn.style.display = "";
+    submitBtn.disabled = false;
+  }
+
+  showPaymentConfirmationGreeting(gatewayLabel);
+}
+
+function setupPaymentGatewayModal(modal) {
+  if (!modal) return;
+
+  const closeButtons = modal.querySelectorAll("[data-close-payment-gateway]");
+  const optionButtons = modal.querySelectorAll("[data-payment-gateway]");
+
+  const closeModal = () => {
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+  };
+
+  closeButtons.forEach((button) => {
+    button.addEventListener("click", closeModal);
+  });
+
+  optionButtons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      const selectedGateway = button.getAttribute("data-payment-gateway");
+      closeModal();
+      await initiatePayment(selectedGateway);
+    });
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal.classList.contains("is-open")) {
+      closeModal();
+    }
+  });
+}
+
+function openPaymentGatewayModal() {
+  const statusEl = document.querySelector(".form-status");
+  const modal = document.getElementById("payment-gateway-modal");
+  const form = document.querySelector(".apply-form");
+  if (!modal || !form) return;
+
+  if (!form.reportValidity()) {
+    setFormStatus(statusEl, "Please complete all required fields before selecting payment gateway.", "warning");
+    return;
+  }
+
+  modal.classList.add("is-open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  modal.querySelector(".payment-gateway-dialog")?.focus();
+}
+
+function handlePayURedirectState() {
+  const params = new URLSearchParams(window.location.search);
+  const paymentStatus = String(params.get("payment") || "").toLowerCase();
+  const gateway = String(params.get("gateway") || "").toLowerCase();
+  const applicationId = String(params.get("applicationId") || localStorage.getItem(PAYMENT_PENDING_APP_KEY) || "").trim();
+  const statusEl = document.querySelector(".form-status");
+
+  if (gateway !== "payu") {
+    return;
+  }
+
+  if (paymentStatus === "success") {
+    setPaymentConfirmedState("PayU", applicationId);
+    localStorage.removeItem(PAYMENT_PENDING_APP_KEY);
+  } else if (paymentStatus === "failure") {
+    setFormStatus(statusEl, "PayU payment was not completed. Please try again.", "warning");
+    const payBtn = document.getElementById("pay-registration-fee-btn");
+    if (payBtn) payBtn.disabled = false;
+    localStorage.removeItem(PAYMENT_PENDING_APP_KEY);
+  }
+
+  if (paymentStatus === "success" || paymentStatus === "failure") {
+    const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
 }
 
 /**
@@ -256,6 +371,7 @@ async function submitApplication() {
     form?.reset();
     applicationData = {};
     isPaymentConfirmed = false;
+    localStorage.removeItem(PAYMENT_PENDING_APP_KEY);
 
     if (payBtn) {
       payBtn.disabled = false;
@@ -273,7 +389,7 @@ async function submitApplication() {
 /**
  * Initiate Razorpay payment
  */
-async function initiatePayment() {
+async function initiatePayment(gateway = "razorpay") {
   const statusEl = document.querySelector(".form-status");
   const payBtn = document.getElementById("pay-registration-fee-btn");
   const form = document.querySelector(".apply-form");
@@ -303,6 +419,11 @@ async function initiatePayment() {
       ? configuredAmount
       : APPLICATION_FEE;
 
+    if (String(gateway).toLowerCase() === "payu") {
+      await initiatePayUPayment({ applicationId, amountToPay, formData });
+      return;
+    }
+
     // Create Razorpay order on backend
     const orderResponse = await apiFetch("/payments/create-order", {
       method: "POST",
@@ -318,13 +439,6 @@ async function initiatePayment() {
     if (!orderResponse.ok) {
       throw new Error(orderData.message || "Failed to create payment order");
     }
-
-    const successRedirectUrl = String(
-      orderData?.successUrl || "https://internships.vyntyraconsultancyservices.in/?payment=success"
-    );
-    const failureRedirectUrl = String(
-      orderData?.failureUrl || "https://internships.vyntyraconsultancyservices.in/?payment=failure"
-    );
 
     // Configure Razorpay checkout
     const options = {
@@ -343,15 +457,12 @@ async function initiatePayment() {
         color: "#0c1425",
       },
       handler: (response) => {
-        verifyPayment(response, applicationId, successRedirectUrl);
+        verifyPayment(response, applicationId);
       },
       modal: {
         ondismiss: () => {
           setFormStatus(statusEl, "Payment cancelled. Please try again.", "warning");
           payBtn.disabled = false;
-          setTimeout(() => {
-            window.location.href = failureRedirectUrl;
-          }, 1000);
         },
       },
     };
@@ -378,10 +489,9 @@ const razorpay = new window.Razorpay(options);
 /**
  * Verify payment with backend
  */
-async function verifyPayment(paymentResponse, applicationId, successRedirectUrl) {
+async function verifyPayment(paymentResponse, applicationId) {
   const statusEl = document.querySelector(".form-status");
   const payBtn = document.getElementById("pay-registration-fee-btn");
-  const submitBtn = document.querySelector(".apply-form button[type='submit']");
 
   try {
     setFormStatus(statusEl, "Verifying payment...", "info");
@@ -402,22 +512,56 @@ async function verifyPayment(paymentResponse, applicationId, successRedirectUrl)
       throw new Error(verifyResult.message || "Payment verification failed");
     }
 
-    isPaymentConfirmed = true;
-    setFormStatus(statusEl, "Payment confirmed. Click Submit Application to complete.", "success");
-
-    payBtn.disabled = true;
-    payBtn.textContent = "Payment Confirmed";
-    if (submitBtn) {
-      submitBtn.style.display = "";
-      submitBtn.disabled = false;
-    }
-
-    setTimeout(() => {
-      window.location.href = successRedirectUrl;
-    }, 3000);
+    setPaymentConfirmedState("Razorpay", applicationId);
   } catch (error) {
     setFormStatus(statusEl, `Verification failed: ${error.message}. Please contact support.`, "error");
     console.error(error);
+    payBtn.disabled = false;
+  }
+}
+
+async function initiatePayUPayment({ applicationId, amountToPay, formData }) {
+  const statusEl = document.querySelector(".form-status");
+  const payBtn = document.getElementById("pay-registration-fee-btn");
+
+  setFormStatus(statusEl, "Redirecting to PayU secure payment page...", "info");
+
+  const response = await apiFetch("/payments/payu/initiate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      applicationId,
+      amount: amountToPay,
+      fullName: formData.get("full_name"),
+      email: formData.get("email"),
+      phone: formData.get("phone"),
+    }),
+  });
+
+  const payuData = await readJsonResponse(response, "PayU initiation failed");
+  if (!response.ok) {
+    throw new Error(payuData.message || "Unable to start PayU payment");
+  }
+
+  localStorage.setItem(PAYMENT_PENDING_APP_KEY, applicationId);
+
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = payuData.actionUrl;
+  form.style.display = "none";
+
+  Object.entries(payuData.fields || {}).forEach(([key, value]) => {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = key;
+    input.value = String(value ?? "");
+    form.appendChild(input);
+  });
+
+  document.body.appendChild(form);
+  form.submit();
+
+  if (payBtn) {
     payBtn.disabled = false;
   }
 }

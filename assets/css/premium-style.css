@@ -1546,6 +1546,16 @@ body {
   box-shadow: 0 10px 22px rgba(26, 129, 94, 0.25);
 }
 
+.form-status.is-celebration {
+  color: #dfffe8;
+  border-color: rgba(125, 255, 191, 0.62);
+  background:
+    radial-gradient(circle at 10% 20%, rgba(123, 225, 255, 0.2), transparent 42%),
+    radial-gradient(circle at 90% 80%, rgba(255, 201, 75, 0.2), transparent 44%),
+    linear-gradient(145deg, rgba(20, 58, 44, 0.8), rgba(8, 30, 24, 0.82));
+  box-shadow: 0 14px 26px rgba(20, 92, 68, 0.35);
+}
+
 .form-status.is-warning {
   color: #ffc94b;
   border-color: rgba(255, 201, 75, 0.52);
@@ -1799,6 +1809,141 @@ body.modal-open {
   inset: 0;
   display: none;
   z-index: 2900;
+}
+
+.payment-gateway-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 2950;
+}
+
+.payment-gateway-modal.is-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.payment-gateway-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(1, 6, 16, 0.74);
+  backdrop-filter: blur(7px);
+}
+
+.payment-gateway-dialog {
+  position: relative;
+  width: min(760px, calc(100% - 2rem));
+  border-radius: 1.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background:
+    radial-gradient(circle at 12% 8%, rgba(123, 225, 255, 0.14), transparent 42%),
+    radial-gradient(circle at 86% 92%, rgba(255, 201, 75, 0.14), transparent 44%),
+    linear-gradient(150deg, rgba(8, 16, 36, 0.97), rgba(3, 8, 20, 0.98));
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.66);
+  padding: 1.2rem;
+  animation: help-modal-enter 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.payment-gateway-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.payment-gateway-header h3 {
+  margin: 0.2rem 0 0;
+  color: #fff;
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+}
+
+.payment-gateway-note {
+  margin: 0.9rem 0 1.1rem;
+  color: rgba(247, 249, 255, 0.8);
+  font-size: 0.92rem;
+}
+
+.payment-gateway-close {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.payment-gateway-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.payment-gateway-option {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 1rem;
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02)),
+    rgba(4, 10, 24, 0.76);
+  color: rgba(247, 249, 255, 0.95);
+  text-align: left;
+  padding: 0.95rem;
+  display: grid;
+  gap: 0.75rem;
+  cursor: pointer;
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.payment-gateway-option:hover {
+  transform: translateY(-2px);
+  border-color: rgba(123, 225, 255, 0.55);
+  box-shadow: 0 16px 26px rgba(8, 32, 54, 0.42);
+}
+
+.payment-gateway-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  border-radius: 0.85rem;
+  padding: 0.6rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.payment-gateway-logo-razorpay svg {
+  width: 112px;
+  height: auto;
+}
+
+.payment-gateway-logo-payu img {
+  width: 110px;
+  height: auto;
+}
+
+.payment-gateway-meta {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.payment-gateway-meta strong {
+  font-size: 0.98rem;
+  letter-spacing: 0.02em;
+}
+
+.payment-gateway-meta small {
+  color: rgba(247, 249, 255, 0.74);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 700px) {
+  .payment-gateway-options {
+    grid-template-columns: 1fr;
+  }
 }
 
 .resume-help-modal.is-open {

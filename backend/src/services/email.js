@@ -1,14 +1,38 @@
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT || "587"),
-  secure: process.env.SMTP_SECURE === "true",
+  host: process.env.ZOHO_SMTP_HOST || process.env.SMTP_HOST || "smtp.zoho.com",
+  port: parseInt(process.env.ZOHO_SMTP_PORT || process.env.SMTP_PORT || "465", 10),
+  secure: String(process.env.ZOHO_SMTP_SECURE || process.env.SMTP_SECURE || "true") === "true",
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: process.env.ZOHO_EMAIL || process.env.SMTP_USER,
+    pass: process.env.ZOHO_APP_PASSWORD || process.env.SMTP_PASS,
   },
 });
+
+const defaultFromEmail = process.env.ZOHO_EMAIL || process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+
+export const sendWelcomeEmail = async (userEmail, userName) => {
+  const mailOptions = {
+    from: `"Vyntyra Academy" <${defaultFromEmail}>`,
+    to: userEmail,
+    subject: "Internship Application Received!",
+    html: `
+      <h1>Hello ${userName},</h1>
+      <p>Thank you for applying to the <b>Vyntyra Summer Internship 2026</b>.</p>
+      <p>Our team is reviewing your profile. You will receive an update within 5 working days.</p>
+      <br />
+      <p>Best regards,<br />Jami Eswar Anil Kumar<br />Founder, Vyntyra</p>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Welcome email sent to ${userEmail}`);
+  } catch (error) {
+    console.error("Welcome email error:", error);
+  }
+};
 
 /**
  * Send confirmation email to candidate with invoice
@@ -73,7 +97,7 @@ export const sendConfirmationEmail = async (
 
   try {
     await transporter.sendMail({
-      from: process.env.SMTP_FROM_EMAIL,
+      from: defaultFromEmail,
       to: candidateEmail,
       subject: "Application Confirmation - Vyntyra Internship Program",
       html,
@@ -156,7 +180,7 @@ export const sendHRNotification = async (
 
   try {
     await transporter.sendMail({
-      from: process.env.SMTP_FROM_EMAIL,
+      from: defaultFromEmail,
       to: "hr@vyntyraconsultancyservices.in",
       subject: `New Application: ${candidateName}`,
       html,
@@ -229,7 +253,7 @@ export const sendPaymentReminder = async (candidateEmail, candidateName) => {
 
   try {
     await transporter.sendMail({
-      from: process.env.SMTP_FROM_EMAIL,
+      from: defaultFromEmail,
       to: candidateEmail,
       subject: "Payment Reminder - Complete Your Application Now!",
       html,
@@ -277,7 +301,7 @@ export const sendWeeklyReport = async (excelBuffer) => {
 
   try {
     await transporter.sendMail({
-      from: process.env.SMTP_FROM_EMAIL,
+      from: defaultFromEmail,
       to: ["hr@vyntyraconsultancyservices.in", "internshipsupport@vyntyraconsultancyservices.in"],
       subject: `Weekly Applications Report - ${new Date().toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })}`,
       html,

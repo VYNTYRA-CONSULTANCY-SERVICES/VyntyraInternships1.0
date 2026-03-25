@@ -12,6 +12,80 @@ const FRONTEND_BASE_URL = (process.env.FRONTEND_BASE_URL || "https://internships
   .replace(/\/+$/, "");
 const PAYMENT_SUCCESS_URL = process.env.PAYMENT_SUCCESS_URL || `${FRONTEND_BASE_URL}/?payment=success`;
 const PAYMENT_FAILURE_URL = process.env.PAYMENT_FAILURE_URL || `${FRONTEND_BASE_URL}/?payment=failure`;
+const BACKEND_BASE_URL = (process.env.BACKEND_BASE_URL || "https://vyntyrainternships-backend.onrender.com")
+  .replace(/\/+$/, "");
+
+const PAYU_MERCHANT_KEY = String(process.env.PAYU_MERCHANT_KEY || "").trim();
+const PAYU_MERCHANT_SALT = String(process.env.PAYU_MERCHANT_SALT || "").trim();
+const PAYU_BASE_URL = (process.env.PAYU_BASE_URL || "https://secure.payu.in").replace(/\/+$/, "");
+
+const toTwoDecimals = (value) => Number(value).toFixed(2);
+const sha512 = (value) => crypto.createHash("sha512").update(value).digest("hex");
+
+const getPayURequiredConfig = () => {
+  if (!PAYU_MERCHANT_KEY || !PAYU_MERCHANT_SALT) {
+    const error = new Error("PayU credentials are missing. Set PAYU_MERCHANT_KEY and PAYU_MERCHANT_SALT.");
+    error.statusCode = 500;
+    throw error;
+  }
+
+  return {
+    key: PAYU_MERCHANT_KEY,
+    salt: PAYU_MERCHANT_SALT,
+    actionUrl: `${PAYU_BASE_URL}/_payment`,
+  };
+};
+
+const mapPayUMethodToInternal = (mode) => {
+  const normalized = String(mode || "").toLowerCase();
+  if (normalized.includes("upi")) return "upi";
+  if (normalized.includes("card")) return "card";
+  if (normalized.includes("nb") || normalized.includes("netbanking")) return "netbanking";
+  if (normalized.includes("wallet")) return "wallet";
+  return null;
+};
+
+const buildPayUResponseHashString = (payload, salt, key) => {
+  const status = String(payload.status || "");
+  const udf1 = String(payload.udf1 || "");
+  const udf2 = String(payload.udf2 || "");
+  const udf3 = String(payload.udf3 || "");
+  const udf4 = String(payload.udf4 || "");
+  const udf5 = String(payload.udf5 || "");
+  const udf6 = String(payload.udf6 || "");
+  const udf7 = String(payload.udf7 || "");
+  const udf8 = String(payload.udf8 || "");
+  const udf9 = String(payload.udf9 || "");
+  const udf10 = String(payload.udf10 || "");
+  const email = String(payload.email || "");
+  const firstname = String(payload.firstname || "");
+  const productinfo = String(payload.productinfo || "");
+  const amount = String(payload.amount || "");
+  const txnid = String(payload.txnid || "");
+  const additionalCharges = String(payload.additionalCharges || "");
+
+  const base = `${salt}|${status}|${udf10}|${udf9}|${udf8}|${udf7}|${udf6}|${udf5}|${udf4}|${udf3}|${udf2}|${udf1}|${email}|${firstname}|${productinfo}|${amount}|${txnid}|${key}`;
+  return additionalCharges ? `${additionalCharges}|${base}` : base;
+};
+
+const runPostPaymentWorkflow = async ({ paymentId, applicationId }) => {
+  try {
+    await publishJob("payment-success", {
+      applicationId: applicationId.toString(),
+      paymentId: paymentId.toString(),
+    });
+  } catch (queueError) {
+    console.warn("Queue failed, running inline", queueError?.message);
+    try {
+      await handlePaymentSuccess({
+        applicationId: applicationId.toString(),
+        paymentId: paymentId.toString(),
+      });
+    } catch (err) {
+      console.warn("Inline handler failed", err?.message);
+    }
+  }
+};
 
 /**
  * POST /api/payments/create-order
@@ -64,6 +138,7 @@ router.post("/create-order", async (req, res, next) => {
       { applicationId },
       {
         $set: {
+          gateway: "razorpay",
           razorpayOrderId: order.id,
           amount: feeAmount,
           currency: "INR",
@@ -95,6 +170,150 @@ router.post("/create-order", async (req, res, next) => {
     next(error);
   }
 });
+
+/**
+ * POST /api/payments/payu/initiate
+ * Initiate PayU hosted checkout.
+ * Body: { applicationId, amount }
+ */
+router.post("/payu/initiate", async (req, res, next) => {
+  try {
+    const { key, salt, actionUrl } = getPayURequiredConfig();
+    const { applicationId, amount } = req.body;
+    const feeAmount = Number(amount ?? process.env.APPLICATION_FEE_INR ?? 499);
+
+    if (!applicationId || !Number.isFinite(feeAmount) || feeAmount <= 0) {
+      return res.status(400).json({ message: "Missing applicationId or valid amount" });
+    }
+
+    const application = await Application.findById(applicationId);
+    if (!application) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    if (application.status !== "PENDING_PAYMENT") {
+      return res.status(400).json({ message: "Application already processed" });
+    }
+
+    const amountString = toTwoDecimals(feeAmount);
+    const txnid = `v${Date.now()}${String(application._id).slice(-8)}`;
+    const productinfo = "Vyntyra Internship Registration Fee";
+    const firstname = String(application.fullName || "Candidate").trim().slice(0, 60);
+    const email = String(application.email || "").trim();
+    const phone = String(application.phone || "").trim();
+    const surl = `${BACKEND_BASE_URL}/api/payments/payu/callback`;
+    const furl = `${BACKEND_BASE_URL}/api/payments/payu/callback`;
+
+    const hashString = `${key}|${txnid}|${amountString}|${productinfo}|${firstname}|${email}|||||||||||${salt}`;
+    const hash = sha512(hashString);
+
+    await Payment.findOneAndUpdate(
+      { applicationId },
+      {
+        $set: {
+          gateway: "payu",
+          payuTxnId: txnid,
+          amount: feeAmount,
+          currency: "INR",
+          status: "pending",
+          updatedAt: new Date(),
+        },
+        $setOnInsert: {
+          applicationId,
+          createdAt: new Date(),
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+      }
+    );
+
+    return res.status(201).json({
+      actionUrl,
+      fields: {
+        key,
+        txnid,
+        amount: amountString,
+        productinfo,
+        firstname,
+        email,
+        phone,
+        surl,
+        furl,
+        hash,
+        udf1: String(application._id),
+      },
+      successUrl: `${PAYMENT_SUCCESS_URL}&gateway=payu&applicationId=${application._id}`,
+      failureUrl: `${PAYMENT_FAILURE_URL}&gateway=payu&applicationId=${application._id}`,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const handlePayUCallback = async (req, res, next) => {
+  try {
+    const { key, salt } = getPayURequiredConfig();
+    const payload = { ...req.query, ...req.body };
+    const txnid = String(payload.txnid || "").trim();
+    const responseHash = String(payload.hash || "").trim().toLowerCase();
+    const status = String(payload.status || "").trim().toLowerCase();
+    const amount = Number(payload.amount || 0);
+    const gateway = "payu";
+
+    if (!txnid) {
+      return res.redirect(`${PAYMENT_FAILURE_URL}&gateway=${gateway}`);
+    }
+
+    const expectedHash = sha512(buildPayUResponseHashString(payload, salt, key)).toLowerCase();
+    const isHashValid = expectedHash === responseHash;
+
+    const payment = await Payment.findOne({ payuTxnId: txnid });
+    if (!payment) {
+      return res.redirect(`${PAYMENT_FAILURE_URL}&gateway=${gateway}`);
+    }
+
+    const isSuccess = isHashValid && status === "success";
+
+    payment.gateway = "payu";
+    payment.payuPaymentId = String(payload.mihpayid || "").trim() || undefined;
+    payment.payuHash = responseHash || undefined;
+    payment.payuUnmappedStatus = String(payload.unmappedstatus || "").trim() || undefined;
+    payment.amount = Number.isFinite(amount) && amount > 0 ? amount : payment.amount;
+    payment.method = mapPayUMethodToInternal(payload.mode);
+    payment.status = isSuccess ? "completed" : "failed";
+    payment.timestamp = new Date();
+    await payment.save();
+
+    if (isSuccess) {
+      const application = await Application.findByIdAndUpdate(
+        payment.applicationId,
+        {
+          status: "COMPLETED_AND_PAID",
+          paymentId: payment._id,
+        },
+        { new: true }
+      );
+
+      if (application) {
+        await runPostPaymentWorkflow({
+          applicationId: application._id,
+          paymentId: payment._id,
+        });
+      }
+    }
+
+    const redirectBase = isSuccess ? PAYMENT_SUCCESS_URL : PAYMENT_FAILURE_URL;
+    return res.redirect(`${redirectBase}&gateway=${gateway}&applicationId=${payment.applicationId}`);
+  } catch (error) {
+    next(error);
+  }
+};
+
+router.post("/payu/callback", handlePayUCallback);
+router.get("/payu/callback", handlePayUCallback);
 
 /**
  * POST /api/payments/verify
@@ -167,24 +386,10 @@ router.post("/verify", async (req, res, next) => {
       { new: true }
     );
 
-    // ✅ Trigger email + invoice (already handled in handler)
-    try {
-      await publishJob("payment-success", {
-        applicationId: application._id.toString(),
-        paymentId: payment._id.toString(),
-      });
-    } catch (queueError) {
-      console.warn("Queue failed, running inline", queueError?.message);
-
-      try {
-        await handlePaymentSuccess({
-          applicationId: application._id.toString(),
-          paymentId: payment._id.toString(),
-        });
-      } catch (err) {
-        console.warn("Inline handler failed", err?.message);
-      }
-    }
+    await runPostPaymentWorkflow({
+      applicationId: application._id,
+      paymentId: payment._id,
+    });
 
     return res.json({
       message: "Payment verified successfully",

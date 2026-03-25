@@ -588,6 +588,43 @@
             </div>
           </form>
 
+          <section id="payment-gateway-modal" class="payment-gateway-modal" aria-hidden="true" aria-label="Select payment gateway">
+            <div class="payment-gateway-backdrop" data-close-payment-gateway></div>
+            <div class="payment-gateway-dialog" role="dialog" aria-modal="true" aria-labelledby="payment-gateway-title" tabindex="-1">
+              <div class="payment-gateway-header">
+                <div>
+                  <p class="eyebrow">Secure Checkout</p>
+                  <h3 id="payment-gateway-title">Choose Your Payment Gateway</h3>
+                </div>
+                <button type="button" class="payment-gateway-close" data-close-payment-gateway aria-label="Close">&times;</button>
+              </div>
+
+              <p class="payment-gateway-note">Select one trusted partner to continue your registration fee payment.</p>
+
+              <div class="payment-gateway-options">
+                <button type="button" class="payment-gateway-option" data-payment-gateway="razorpay">
+                  <span class="payment-gateway-logo payment-gateway-logo-razorpay" aria-hidden="true">
+                    <svg width="116" height="24" viewBox="0 0 116 24" fill="none" xmlns="http://www.w3.org/2000/svg"><g><path d="M7.49 6.49 6.53 10.03l5.51-3.56-3.6 13.44h3.66L17.42.06" fill="#3395FF"></path><path d="M1.56 14.26.05 19.92h7.5l3.07-11.5-9.05 5.84Z" fill="#3395FF"></path><path d="M27.62 9.29c-.18.68-.54 1.18-1.06 1.5-.53.32-1.26.48-2.22.48h-3.02l1.06-3.96h3.02c.95 0 1.6.16 1.96.48.35.32.44.82.26 1.5Zm3.13-.08c.38-1.43.22-2.53-.48-3.3-.7-.76-1.94-1.15-3.7-1.15h-6.75l-4.06 15.16h3.28l1.64-6.11h2.15c.48 0 .86.08 1.14.24.28.16.44.43.49.83l.58 5.05h3.51l-.57-4.71c-.12-1.05-.6-1.67-1.44-1.85 1.08-.31 1.98-.83 2.71-1.55.72-.72 1.24-1.61 1.49-2.6Z" fill="#fff"></path></g></svg>
+                  </span>
+                  <span class="payment-gateway-meta">
+                    <strong>Razorpay</strong>
+                    <small>Cards, UPI, Netbanking, Wallets</small>
+                  </span>
+                </button>
+
+                <button type="button" class="payment-gateway-option" data-payment-gateway="payu">
+                  <span class="payment-gateway-logo payment-gateway-logo-payu" aria-hidden="true">
+                    <img src="https://devguide.payu.in/website-assets/uploads/2024/10/payu-complete-white-logo.svg" alt="PayU" loading="lazy" />
+                  </span>
+                  <span class="payment-gateway-meta">
+                    <strong>PayU</strong>
+                    <small>UPI, Cards, EMI and Netbanking</small>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </section>
+
           <!-- Duration & Pricing Modal -->
           <div id="duration-modal" class="duration-modal" aria-hidden="true">
             <div class="duration-modal-backdrop" data-close-duration></div>

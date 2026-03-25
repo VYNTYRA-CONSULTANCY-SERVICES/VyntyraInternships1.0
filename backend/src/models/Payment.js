@@ -9,8 +9,8 @@ const paymentSchema = new mongoose.Schema({
   },
   razorpayOrderId: {
     type: String,
-    required: true,
     unique: true,
+    sparse: true,
     index: true,
   },
   razorpayPaymentId: {
@@ -26,6 +26,31 @@ const paymentSchema = new mongoose.Schema({
   amount: {
     type: Number,
     required: true,
+  },
+  gateway: {
+    type: String,
+    enum: ["razorpay", "payu"],
+    default: "razorpay",
+    index: true,
+  },
+  payuTxnId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true,
+  },
+  payuPaymentId: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
+  payuHash: {
+    type: String,
+    sparse: true,
+  },
+  payuUnmappedStatus: {
+    type: String,
+    sparse: true,
   },
   currency: {
     type: String,
