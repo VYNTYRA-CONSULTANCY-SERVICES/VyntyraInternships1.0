@@ -14,9 +14,23 @@ const PAYMENT_SUCCESS_URL = process.env.PAYMENT_SUCCESS_URL || `${FRONTEND_BASE_
 const PAYMENT_FAILURE_URL = process.env.PAYMENT_FAILURE_URL || `${FRONTEND_BASE_URL}/?payment=failure`;
 const BACKEND_BASE_URL = (process.env.BACKEND_BASE_URL || "https://vyntyrainternships-backend.onrender.com")
   .replace(/\/+$/, "");
+const enablePaymentTimingLogs = String(process.env.ENABLE_REQUEST_TIMING_LOGS ?? "false").toLowerCase() === "true";
 
 const toTwoDecimals = (value) => Number(value).toFixed(2);
 const sha512 = (value) => crypto.createHash("sha512").update(value).digest("hex");
+const nowNs = () => process.hrtime.bigint();
+const elapsedMs = (startNs) => Number(nowNs() - startNs) / 1e6;
+
+const logPaymentTiming = (label, metadata = {}) => {
+  if (!enablePaymentTimingLogs) {
+    return;
+  }
+
+  const metadataString = Object.entries(metadata)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(" ");
+  console.log(`[payment-timing] ${label}${metadataString ? ` ${metadataString}` : ""}`);
+};
 
 const getPayURequiredConfig = () => {
   const merchantKey = String(process.env.PAYU_MERCHANT_KEY || "").trim();
@@ -71,10 +85,15 @@ const buildPayUResponseHashString = (payload, salt, key) => {
 const runPostPaymentWorkflow = async ({ paymentId, applicationId }) => {
   // Non-blocking - don't wait for this to complete
   try {
-    const publishSuccess = await publishJob("payment-success", {
-      applicationId: applicationId.toString(),
-      paymentId: paymentId.toString(),
-    });
+    const publishSuccess = await Promise.race([
+      publishJob("payment-success", {
+        applicationId: applicationId.toString(),
+        paymentId: paymentId.toString(),
+      }),
+      new Promise((resolve) => {
+        setTimeout(() => resolve(false), 500);
+      }),
+    ]);
     
     if (!publishSuccess) {
       console.warn("Queue failed, running inline");
@@ -100,6 +119,7 @@ const runPostPaymentWorkflow = async ({ paymentId, applicationId }) => {
  * Body: { applicationId, amount }
  */
 router.post("/create-order", async (req, res, next) => {
+  const routeStartNs = nowNs();
   try {
     const razorpay = getRazorpayClient();
     const { applicationId, amount } = req.body;
@@ -109,7 +129,10 @@ router.post("/create-order", async (req, res, next) => {
       return res.status(400).json({ message: "Missing applicationId or valid amount" });
     }
 
-    const application = await Application.findById(applicationId);
+    const application = await Application.findById(applicationId)
+      .select("_id status email fullName")
+      .lean();
+    const lookupDoneNs = nowNs();
     if (!application) {
       return res.status(404).json({ message: "Application not found" });
     }
@@ -130,6 +153,49 @@ router.post("/create-order", async (req, res, next) => {
           fullName: application.fullName,
         },
       });
+      const orderDoneNs = nowNs();
+
+      // Create or update payment record
+      const payment = await Payment.findOneAndUpdate(
+        { applicationId },
+        {
+          $set: {
+            gateway: "razorpay",
+            razorpayOrderId: order.id,
+            amount: feeAmount,
+            currency: "INR",
+            status: "pending",
+            updatedAt: new Date(),
+          },
+          $setOnInsert: {
+            applicationId,
+            createdAt: new Date(),
+          },
+        },
+        {
+          new: true,
+          upsert: true,
+          runValidators: true,
+        }
+      );
+      const dbUpsertDoneNs = nowNs();
+
+      logPaymentTiming("create-order", {
+        applicationId,
+        appLookupMs: elapsedMs(routeStartNs).toFixed(2),
+        razorpayOrderMs: (Number(orderDoneNs - lookupDoneNs) / 1e6).toFixed(2),
+        dbUpsertMs: (Number(dbUpsertDoneNs - orderDoneNs) / 1e6).toFixed(2),
+        totalMs: elapsedMs(routeStartNs).toFixed(2),
+      });
+
+      return res.status(201).json({
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        paymentId: payment._id,
+        successUrl: PAYMENT_SUCCESS_URL,
+        failureUrl: PAYMENT_FAILURE_URL,
+      });
     } catch (rzpError) {
       const description = rzpError?.error?.description || rzpError?.message;
       if (rzpError?.statusCode === 401 || /auth/i.test(String(description || ""))) {
@@ -139,39 +205,6 @@ router.post("/create-order", async (req, res, next) => {
       }
       throw rzpError;
     }
-
-    // Create or update payment record
-    const payment = await Payment.findOneAndUpdate(
-      { applicationId },
-      {
-        $set: {
-          gateway: "razorpay",
-          razorpayOrderId: order.id,
-          amount: feeAmount,
-          currency: "INR",
-          status: "pending",
-          updatedAt: new Date(),
-        },
-        $setOnInsert: {
-          applicationId,
-          createdAt: new Date(),
-        },
-      },
-      {
-        new: true,
-        upsert: true,
-        runValidators: true,
-      }
-    );
-
-    return res.status(201).json({
-      orderId: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      paymentId: payment._id,
-      successUrl: PAYMENT_SUCCESS_URL,
-      failureUrl: PAYMENT_FAILURE_URL,
-    });
 
   } catch (error) {
     next(error);
@@ -184,6 +217,7 @@ router.post("/create-order", async (req, res, next) => {
  * Body: { applicationId, amount }
  */
 router.post("/payu/initiate", async (req, res, next) => {
+  const routeStartNs = nowNs();
   try {
     const { key, salt, actionUrl } = getPayURequiredConfig();
     const { applicationId, amount } = req.body;
@@ -193,7 +227,10 @@ router.post("/payu/initiate", async (req, res, next) => {
       return res.status(400).json({ message: "Missing applicationId or valid amount" });
     }
 
-    const application = await Application.findById(applicationId);
+    const application = await Application.findById(applicationId)
+      .select("_id status email fullName phone")
+      .lean();
+    const lookupDoneNs = nowNs();
     if (!application) {
       return res.status(404).json({ message: "Application not found" });
     }
@@ -248,6 +285,14 @@ router.post("/payu/initiate", async (req, res, next) => {
         runValidators: true,
       }
     );
+    const upsertDoneNs = nowNs();
+
+    logPaymentTiming("payu-initiate", {
+      applicationId,
+      appLookupMs: (Number(lookupDoneNs - routeStartNs) / 1e6).toFixed(2),
+      dbUpsertMs: (Number(upsertDoneNs - lookupDoneNs) / 1e6).toFixed(2),
+      totalMs: elapsedMs(routeStartNs).toFixed(2),
+    });
 
     return res.status(201).json({
       actionUrl,
@@ -274,6 +319,7 @@ router.post("/payu/initiate", async (req, res, next) => {
 });
 
 const handlePayUCallback = async (req, res, next) => {
+  const routeStartNs = nowNs();
   try {
     const { key, salt } = getPayURequiredConfig();
     const payload = { ...req.query, ...req.body };
@@ -294,6 +340,7 @@ const handlePayUCallback = async (req, res, next) => {
     if (!payment) {
       return res.redirect(`${PAYMENT_FAILURE_URL}&gateway=${gateway}`);
     }
+    const paymentLookupDoneNs = nowNs();
 
     const isSuccess = isHashValid && status === "success";
 
@@ -306,6 +353,7 @@ const handlePayUCallback = async (req, res, next) => {
     payment.status = isSuccess ? "completed" : "failed";
     payment.timestamp = new Date();
     await payment.save();
+    const paymentSaveDoneNs = nowNs();
 
     if (isSuccess) {
       const application = await Application.findByIdAndUpdate(
@@ -318,14 +366,23 @@ const handlePayUCallback = async (req, res, next) => {
       );
 
       if (application) {
-        await runPostPaymentWorkflow({
+        runPostPaymentWorkflow({
           applicationId: application._id,
           paymentId: payment._id,
+        }).catch((workflowError) => {
+          console.warn("PayU post-payment workflow failed", workflowError?.message);
         });
       }
     }
 
     const redirectBase = isSuccess ? PAYMENT_SUCCESS_URL : PAYMENT_FAILURE_URL;
+    logPaymentTiming("payu-callback", {
+      txnid,
+      isSuccess,
+      paymentLookupMs: (Number(paymentLookupDoneNs - routeStartNs) / 1e6).toFixed(2),
+      paymentSaveMs: (Number(paymentSaveDoneNs - paymentLookupDoneNs) / 1e6).toFixed(2),
+      totalMs: elapsedMs(routeStartNs).toFixed(2),
+    });
     return res.redirect(`${redirectBase}&gateway=${gateway}&applicationId=${payment.applicationId}`);
   } catch (error) {
     next(error);
@@ -341,6 +398,7 @@ router.get("/payu/callback", handlePayUCallback);
  * Body: { razorpayOrderId, razorpayPaymentId, razorpaySignature }
  */
 router.post("/verify", async (req, res, next) => {
+  const routeStartNs = nowNs();
   try {
     const razorpay = getRazorpayClient();
     const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
@@ -364,6 +422,7 @@ router.post("/verify", async (req, res, next) => {
 
     // Find payment record immediately and return success
     const payment = await Payment.findOne({ razorpayOrderId });
+    const paymentLookupDoneNs = nowNs();
     if (!payment) {
       return res.status(404).json({ message: "Payment record not found" });
     }
@@ -414,11 +473,19 @@ router.post("/verify", async (req, res, next) => {
       updatePaymentPromise,
       updateApplicationPromise,
     ]);
+    const dbUpdateDoneNs = nowNs();
 
     res.json({
       message: "Payment verified successfully",
       applicationId: updatedApplication._id,
       status: updatedApplication.status,
+    });
+
+    logPaymentTiming("verify", {
+      orderId: razorpayOrderId,
+      paymentLookupMs: (Number(paymentLookupDoneNs - routeStartNs) / 1e6).toFixed(2),
+      dbUpdateMs: (Number(dbUpdateDoneNs - paymentLookupDoneNs) / 1e6).toFixed(2),
+      responseMs: elapsedMs(routeStartNs).toFixed(2),
     });
 
     // Continue with additional updates asynchronously (non-blocking)

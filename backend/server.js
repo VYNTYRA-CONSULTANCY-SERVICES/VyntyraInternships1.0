@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import compression from "compression";
+import { randomUUID } from "crypto";
 import path from "path";
 import dotenv from "dotenv";
 
@@ -29,6 +30,13 @@ const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || defaultAllowedOrigin
   .filter(Boolean);
 
 const allowNetlifyPreviews = String(process.env.ALLOW_NETLIFY_PREVIEWS ?? "true").toLowerCase() === "true";
+const enableRequestTimingLogs = String(
+  process.env.ENABLE_REQUEST_TIMING_LOGS ?? (process.env.NODE_ENV === "production" ? "true" : "false")
+).toLowerCase() === "true";
+const requestTimingSampleRateRaw = Number(process.env.REQUEST_TIMING_SAMPLE_RATE ?? 1);
+const requestTimingSampleRate = Number.isFinite(requestTimingSampleRateRaw)
+  ? Math.max(0, Math.min(1, requestTimingSampleRateRaw))
+  : 1;
 
 function isNetlifyPreviewOrigin(origin) {
   try {
@@ -64,6 +72,29 @@ app.use(compression()); // Enable gzip compression for responses
 app.use(express.json({ limit: "10mb" })); // Increase payload limit for large files
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+if (enableRequestTimingLogs) {
+  app.use((req, res, next) => {
+    if (Math.random() > requestTimingSampleRate) {
+      next();
+      return;
+    }
+
+    const startedAt = process.hrtime.bigint();
+    const requestId = String(req.headers["x-request-id"] || randomUUID());
+    res.setHeader("x-request-id", requestId);
+
+    res.on("finish", () => {
+      const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+      const contentLength = res.getHeader("content-length") ?? "-";
+      console.log(
+        `[request-timing] id=${requestId} method=${req.method} path=${req.originalUrl} status=${res.statusCode} durationMs=${durationMs.toFixed(2)} bytes=${contentLength}`
+      );
+    });
+
+    next();
+  });
+}
+
 // Keep-alive endpoint for Render (prevents cold start)
 app.get("/keep-alive", (_req, res) => {
   res.json({ status: "alive", timestamp: Date.now() });
@@ -98,11 +129,9 @@ app.listen(PORT, () => {
 });
 
 // Initialize database and background services in parallel (non-blocking)
-connectDB(process.env.MONGODB_URI)
-  .catch((error) => {
-    console.error("MongoDB connection failed", error);
-    process.exit(1);
-  });
+connectDB(process.env.MONGODB_URI).catch((error) => {
+  console.error("MongoDB bootstrap error", error);
+});
 
 // Start background services without blocking - fallbacks are handled
 startBackgroundServices();

@@ -3,63 +3,87 @@ import amqp from "amqplib";
 const AMQP_URL = process.env.RABBITMQ_URL ?? "amqp://127.0.0.1:5672";
 const EXCHANGE_NAME = process.env.RABBITMQ_EXCHANGE ?? "vyntyra.jobs";
 const EXCHANGE_TYPE = "topic";
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000; // 2 seconds
+const CONNECT_TIMEOUT_MS = Number(process.env.RABBITMQ_CONNECT_TIMEOUT_MS ?? 2500);
+const CIRCUIT_OPEN_MS = Number(process.env.RABBITMQ_CIRCUIT_OPEN_MS ?? 30000);
 
 let connection;
 let publishChannel;
 let connectionReady = false;
+let unavailableUntil = 0;
+let connectingPromise;
 
-export const connectRabbitMQ = async (retries = 0) => {
+const withTimeout = (promise, timeoutMs, label) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timeout`)), timeoutMs);
+    }),
+  ]);
+};
+
+const resetConnectionState = () => {
+  connection = undefined;
+  publishChannel = undefined;
+  connectionReady = false;
+};
+
+export const connectRabbitMQ = async ({ force = false, timeoutMs = CONNECT_TIMEOUT_MS } = {}) => {
   if (connection && publishChannel && connectionReady) {
     return { connection, publishChannel };
   }
 
-  try {
-    // Add connection timeout
-    const connectPromise = amqp.connect(AMQP_URL);
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("RabbitMQ connection timeout")), 8000)
-    );
-
-    connection = await Promise.race([connectPromise, timeoutPromise]);
-    publishChannel = await connection.createChannel();
-    await publishChannel.assertExchange(EXCHANGE_NAME, EXCHANGE_TYPE, { durable: true });
-
-    connection.on("close", () => {
-      console.warn("RabbitMQ connection closed, will reconnect on next use");
-      connection = undefined;
-      publishChannel = undefined;
-      connectionReady = false;
-    });
-
-    connection.on("error", (error) => {
-      console.warn("RabbitMQ connection error", error?.message);
-      connection = undefined;
-      publishChannel = undefined;
-      connectionReady = false;
-    });
-
-    connectionReady = true;
-    console.log("RabbitMQ connected successfully");
-    return { connection, publishChannel };
-  } catch (error) {
-    console.warn(`RabbitMQ connection failed (attempt ${retries + 1}/${MAX_RETRIES})`, error?.message);
-    
-    if (retries < MAX_RETRIES - 1) {
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
-      return connectRabbitMQ(retries + 1);
-    }
-
-    // Don't throw - let system run in degraded mode
-    connectionReady = false;
+  if (!force && Date.now() < unavailableUntil) {
     return null;
   }
+
+  if (connectingPromise) {
+    return connectingPromise;
+  }
+
+  connectingPromise = (async () => {
+    try {
+      const conn = await withTimeout(amqp.connect(AMQP_URL), timeoutMs, "RabbitMQ connect");
+      const channel = await withTimeout(conn.createChannel(), timeoutMs, "RabbitMQ channel");
+      await withTimeout(
+        channel.assertExchange(EXCHANGE_NAME, EXCHANGE_TYPE, { durable: true }),
+        timeoutMs,
+        "RabbitMQ exchange assert"
+      );
+
+      connection = conn;
+      publishChannel = channel;
+      connectionReady = true;
+      unavailableUntil = 0;
+
+      connection.on("close", () => {
+        console.warn("RabbitMQ connection closed, will reconnect on next use");
+        resetConnectionState();
+      });
+
+      connection.on("error", (error) => {
+        console.warn("RabbitMQ connection error", error?.message);
+        resetConnectionState();
+      });
+
+      console.log("RabbitMQ connected successfully");
+      return { connection, publishChannel };
+    } catch (error) {
+      console.warn("RabbitMQ unavailable, opening circuit", error?.message);
+      resetConnectionState();
+      unavailableUntil = Date.now() + CIRCUIT_OPEN_MS;
+      return null;
+    } finally {
+      connectingPromise = undefined;
+    }
+  })();
+
+  return connectingPromise;
 };
 
 export const publishJob = async (routingKey, payload) => {
   try {
-    const result = await connectRabbitMQ();
+    // Fast-fail connection attempt to avoid blocking user-facing APIs.
+    const result = await connectRabbitMQ({ timeoutMs: 1200 });
     if (!result || !publishChannel) {
       console.warn("RabbitMQ unavailable, job queuing failed for:", routingKey);
       return false;
@@ -80,7 +104,8 @@ export const publishJob = async (routingKey, payload) => {
 
 export const startWorker = async (handlers) => {
   try {
-    const result = await connectRabbitMQ();
+    // Worker startup can use a longer timeout as this is not user-facing.
+    const result = await connectRabbitMQ({ force: true, timeoutMs: 5000 });
     if (!result || !connection) {
       console.warn("RabbitMQ unavailable, worker not started");
       return false;
@@ -143,14 +168,6 @@ export const startWorker = async (handlers) => {
     return false;
   }
 };
-          persistent: true,
-          headers: { "x-retry-count": retries + 1 },
-        });
-        workerChannel.ack(msg);
-      }
-    }
-  });
-};
 
 export const closeRabbitMQ = async () => {
   if (publishChannel) {
@@ -160,6 +177,6 @@ export const closeRabbitMQ = async () => {
     await connection.close();
   }
 
-  publishChannel = undefined;
-  connection = undefined;
+  resetConnectionState();
+  unavailableUntil = 0;
 };
