@@ -27,6 +27,17 @@ const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || defaultAllowedOrigin
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const allowNetlifyPreviews = String(process.env.ALLOW_NETLIFY_PREVIEWS ?? "true").toLowerCase() === "true";
+
+function isNetlifyPreviewOrigin(origin) {
+  try {
+    const { protocol, hostname } = new URL(origin);
+    return protocol === "https:" && hostname.endsWith(".netlify.app");
+  } catch {
+    return false;
+  }
+}
+
 const corsOptions = {
   origin(origin, callback) {
     // Allow server-to-server and curl-like calls without Origin header.
@@ -35,7 +46,8 @@ const corsOptions = {
       return;
     }
 
-    const isAllowed = allowedOrigins.includes(origin);
+    const isAllowed = allowedOrigins.includes(origin)
+      || (allowNetlifyPreviews && isNetlifyPreviewOrigin(origin));
     if (isAllowed) {
       callback(null, true);
       return;

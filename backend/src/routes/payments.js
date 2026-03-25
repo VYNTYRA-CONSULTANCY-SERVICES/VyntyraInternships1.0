@@ -8,6 +8,11 @@ import { handlePaymentSuccess } from "../jobs/handlers.js";
 
 const router = Router();
 
+const FRONTEND_BASE_URL = (process.env.FRONTEND_BASE_URL || "https://internships.vyntyraconsultancyservices.in")
+  .replace(/\/+$/, "");
+const PAYMENT_SUCCESS_URL = process.env.PAYMENT_SUCCESS_URL || `${FRONTEND_BASE_URL}/?payment=success`;
+const PAYMENT_FAILURE_URL = process.env.PAYMENT_FAILURE_URL || `${FRONTEND_BASE_URL}/?payment=failure`;
+
 /**
  * POST /api/payments/create-order
  * Create a Razorpay order for the application fee
@@ -82,6 +87,8 @@ router.post("/create-order", async (req, res, next) => {
       amount: order.amount,
       currency: order.currency,
       paymentId: payment._id,
+      successUrl: PAYMENT_SUCCESS_URL,
+      failureUrl: PAYMENT_FAILURE_URL,
     });
 
   } catch (error) {

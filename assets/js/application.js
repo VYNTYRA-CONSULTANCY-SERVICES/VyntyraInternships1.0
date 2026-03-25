@@ -319,6 +319,13 @@ async function initiatePayment() {
       throw new Error(orderData.message || "Failed to create payment order");
     }
 
+    const successRedirectUrl = String(
+      orderData?.successUrl || "https://internships.vyntyraconsultancyservices.in/?payment=success"
+    );
+    const failureRedirectUrl = String(
+      orderData?.failureUrl || "https://internships.vyntyraconsultancyservices.in/?payment=failure"
+    );
+
     // Configure Razorpay checkout
     const options = {
       key: RAZORPAY_KEY,
@@ -336,12 +343,15 @@ async function initiatePayment() {
         color: "#0c1425",
       },
       handler: (response) => {
-        verifyPayment(response, applicationId);
+        verifyPayment(response, applicationId, successRedirectUrl);
       },
       modal: {
         ondismiss: () => {
           setFormStatus(statusEl, "Payment cancelled. Please try again.", "warning");
           payBtn.disabled = false;
+          setTimeout(() => {
+            window.location.href = failureRedirectUrl;
+          }, 1000);
         },
       },
     };
@@ -368,7 +378,7 @@ const razorpay = new window.Razorpay(options);
 /**
  * Verify payment with backend
  */
-async function verifyPayment(paymentResponse, applicationId) {
+async function verifyPayment(paymentResponse, applicationId, successRedirectUrl) {
   const statusEl = document.querySelector(".form-status");
   const payBtn = document.getElementById("pay-registration-fee-btn");
   const submitBtn = document.querySelector(".apply-form button[type='submit']");
@@ -402,10 +412,8 @@ async function verifyPayment(paymentResponse, applicationId) {
       submitBtn.disabled = false;
     }
 
-    // Redirect to thank you page or show success modal after 3 seconds
     setTimeout(() => {
-      // Optional: Redirect to confirmation page
-      // window.location.href = '/thank-you.html';
+      window.location.href = successRedirectUrl;
     }, 3000);
   } catch (error) {
     setFormStatus(statusEl, `Verification failed: ${error.message}. Please contact support.`, "error");
