@@ -9,15 +9,15 @@ const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
 const isProduction = !localHosts.has(window.location.hostname);
 const configuredApiBase = document.body?.dataset?.apiBase?.trim();
 const API_BASE_CANDIDATES = isProduction
-  ? [configuredApiBase, `${window.location.origin}/api`, "https://api.vyntyraconsultancyservices.in/api"]
-  : [configuredApiBase, "http://127.0.0.1:4000/api", "http://127.0.0.1:5004/api", `${window.location.origin}/api`]
+  ? [configuredApiBase, `${window.location.origin}/api`, "https://vyntyrainternships-backend.onrender.com/api"]
+  : [configuredApiBase, "https://vyntyrainternships-backend.onrender.com/api", `${window.location.origin}/api`]
       .filter(Boolean);
 
 const UNIQUE_API_BASE_CANDIDATES = [...new Set(API_BASE_CANDIDATES)];
 let activeApiBase = UNIQUE_API_BASE_CANDIDATES.find(Boolean) || "";
 */
 
-const API_BASE = "http://127.0.0.1:4000/api";
+const API_BASE = "https://vyntyrainternships-backend.onrender.com/api";
 // Live Razorpay public key
 const RAZORPAY_KEY = "rzp_live_SUgru3eERmlvUC";
 
@@ -46,7 +46,7 @@ async function apiFetch(path, options = {}) {
 
   } catch (error) {
     console.error("API Error:", error);
-    throw new Error("Unable to reach backend server. Make sure backend is running on port 4000.");
+    throw new Error("Unable to reach backend server. Please try again in a few moments.");
   }
 }
 
@@ -357,7 +357,7 @@ const razorpay = new window.Razorpay(options);
     const message = error instanceof TypeError
       ? "Payment Error: Unable to reach payment server. Please retry in a few seconds."
       : /HTML page instead of API JSON|non-JSON response|Invalid JSON response/i.test(String(error?.message || ""))
-        ? "Payment Error: API endpoint misconfigured. Please run backend on port 4000 and ensure /api/payments routes are reachable."
+        ? "Payment Error: API endpoint misconfigured. Please ensure the Render backend /api/payments routes are reachable."
         : `Payment Error: ${error.message}`;
     setFormStatus(statusEl, message, "error");
     console.error(error);
