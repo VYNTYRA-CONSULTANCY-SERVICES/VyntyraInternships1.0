@@ -2,12 +2,7 @@
 
 ## 🚀 What's Fixed
 
-Your payment system now handles:
-- ✅ **Instant payment gateway display** (was 60-80 sec, now <2 sec)
-- ✅ **Concurrent payments** (100+ simultaneous payments)
-- ✅ **Cold start prevention** (Render keep-alive enabled)
-- ✅ **Automatic retry logic** (RabbitMQ failures handled gracefully)
-- ✅ **Compressed responses** (60% smaller payloads)
+This guide covers deployment, monitoring, and troubleshooting steps for the payment system.
 
 ---
 
@@ -31,7 +26,7 @@ PORT=4000
 ### 3. **Deploy to Render**
 ```bash
 git add .
-git commit -m "Optimize payment system for 100+ concurrent payments"
+git commit -m "Update payment system deployment configuration"
 git push
 ```
 
@@ -46,13 +41,11 @@ git push
 
 ## 🧪 Testing Your Payment Flow
 
-### Test 1: Quick Payment (< 5 seconds expected)
+### Test 1: Payment Gateway Opens
 1. Open website
 2. Fill application form
 3. Click "Pay Registration Fee"
-4. Should see payment gateway within 2-3 seconds
-
-**Expected time**: 2-3 seconds (was 60-80 seconds)
+4. Confirm payment gateway opens correctly
 
 ### Test 2: Concurrent Payments
 - Open 5+ browser tabs
@@ -68,40 +61,17 @@ git push
 
 ---
 
-## 📊 Performance Improvements
-
-### Response Times
-| Operation | Before | After |
-|-----------|--------|-------|
-| Server startup | 60-80s | <5s |
-| Order creation | 5-10s | 2-3s |
-| Payment verify | 8-15s | 1-2s |
-
-### Concurrent Capacity
-| Metric | Before | After |
-|--------|--------|-------|
-| Max concurrent | 10-20 | 100+ |
-| Connection pool | 1 | 2-10 |
-
-### Network Size
-| Metric | Before | After |
-|--------|--------|-------|
-| Avg response | ~50KB | ~20KB |
-| Compression | None | GZip |
-
----
-
 ## 🔍 Key Changes Made
 
 ### Backend Changes
 1. **Non-blocking startup** - Server starts immediately
 2. **Connection pooling** - Better concurrent request handling
-3. **RabbitMQ retry logic** - Auto-reconnect with backoff
+3. **RabbitMQ fallback handling** - Queue issues do not block the API
 4. **Async post-payment** - No blocking on email/workflow
 5. **Database indexes** - Fast payment lookups
 
 ### Frontend Changes
-1. **Keep-alive timer** - Pings backend every 5 minutes
+1. **Health ping support** - Helps keep backend responsive
 2. **Request timeouts** - 15-20 second limits
 3. **Better status messages** - More user feedback
 4. **Non-blocking operations** - Handles slow responses
@@ -175,9 +145,7 @@ If you encounter issues:
 ## ✅ Success Indicators
 
 - ✅ Website loads without errors
-- ✅ Payment gateway appears in <5 seconds
 - ✅ Multiple payments process simultaneously
-- ✅ No cold start delays after first access daily
 - ✅ Logs show "Listening on port 4000"
 
 **Deployment successful when all 5 indicators are green! 🎉**
