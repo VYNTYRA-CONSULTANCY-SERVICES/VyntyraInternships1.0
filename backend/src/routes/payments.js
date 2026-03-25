@@ -15,24 +15,24 @@ const PAYMENT_FAILURE_URL = process.env.PAYMENT_FAILURE_URL || `${FRONTEND_BASE_
 const BACKEND_BASE_URL = (process.env.BACKEND_BASE_URL || "https://vyntyrainternships-backend.onrender.com")
   .replace(/\/+$/, "");
 
-const PAYU_MERCHANT_KEY = String(process.env.PAYU_MERCHANT_KEY || "").trim();
-const PAYU_MERCHANT_SALT = String(process.env.PAYU_MERCHANT_SALT || "").trim();
-const PAYU_BASE_URL = (process.env.PAYU_BASE_URL || "https://secure.payu.in").replace(/\/+$/, "");
-
 const toTwoDecimals = (value) => Number(value).toFixed(2);
 const sha512 = (value) => crypto.createHash("sha512").update(value).digest("hex");
 
 const getPayURequiredConfig = () => {
-  if (!PAYU_MERCHANT_KEY || !PAYU_MERCHANT_SALT) {
+  const merchantKey = String(process.env.PAYU_MERCHANT_KEY || "").trim();
+  const merchantSalt = String(process.env.PAYU_MERCHANT_SALT || "").trim();
+  const payUBaseUrl = (process.env.PAYU_BASE_URL || "https://secure.payu.in").replace(/\/+$/, "");
+
+  if (!merchantKey || !merchantSalt) {
     const error = new Error("PayU credentials are missing. Set PAYU_MERCHANT_KEY and PAYU_MERCHANT_SALT.");
     error.statusCode = 500;
     throw error;
   }
 
   return {
-    key: PAYU_MERCHANT_KEY,
-    salt: PAYU_MERCHANT_SALT,
-    actionUrl: `${PAYU_BASE_URL}/_payment`,
+    key: merchantKey,
+    salt: merchantSalt,
+    actionUrl: `${payUBaseUrl}/_payment`,
   };
 };
 
@@ -204,7 +204,19 @@ router.post("/payu/initiate", async (req, res, next) => {
     const surl = `${BACKEND_BASE_URL}/api/payments/payu/callback`;
     const furl = `${BACKEND_BASE_URL}/api/payments/payu/callback`;
 
-    const hashString = `${key}|${txnid}|${amountString}|${productinfo}|${firstname}|${email}|||||||||||${salt}`;
+    const udf1 = String(application._id);
+    const udf2 = "";
+    const udf3 = "";
+    const udf4 = "";
+    const udf5 = "";
+    const udf6 = "";
+    const udf7 = "";
+    const udf8 = "";
+    const udf9 = "";
+    const udf10 = "";
+
+    // Hash must match exactly with posted fields order expected by PayU.
+    const hashString = `${key}|${txnid}|${amountString}|${productinfo}|${firstname}|${email}|${udf1}|${udf2}|${udf3}|${udf4}|${udf5}|${udf6}|${udf7}|${udf8}|${udf9}|${udf10}|${salt}`;
     const hash = sha512(hashString);
 
     await Payment.findOneAndUpdate(
@@ -243,7 +255,8 @@ router.post("/payu/initiate", async (req, res, next) => {
         surl,
         furl,
         hash,
-        udf1: String(application._id),
+        udf1,
+        service_provider: "payu_paisa",
       },
       successUrl: `${PAYMENT_SUCCESS_URL}&gateway=payu&applicationId=${application._id}`,
       failureUrl: `${PAYMENT_FAILURE_URL}&gateway=payu&applicationId=${application._id}`,
