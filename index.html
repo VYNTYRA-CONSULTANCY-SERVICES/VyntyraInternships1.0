@@ -15,7 +15,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="assets/css/premium-style.css" />
-    <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
+    <script id="razorpay-checkout-sdk" src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
     <link rel="preconnect" href="https://checkout.razorpay.com" crossorigin />
     <link rel="dns-prefetch" href="//checkout.razorpay.com" />
     <link rel="preconnect" href="https://secure.payu.in" crossorigin />
@@ -45,7 +45,6 @@
         ]
       }
     </script>
-    <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
   </head>
   <body>
     <div class="canvas">
@@ -70,6 +69,21 @@
             <a class="cta primary" href="#apply">Apply</a>
           </div>
         </nav>
+        <div class="footer-note-marquee hero-note-marquee" aria-label="Internship intake announcement">
+          <div class="footer-note-track">
+            <span>Vyntyra Summer Internships 2026 are live now</span>
+            <span class="dot" aria-hidden="true"></span>
+            <strong>Applications close on 15th April 2026 for first level of intake</strong>
+            <span class="dot" aria-hidden="true"></span>
+            <span>Apply now</span>
+            <span class="dot" aria-hidden="true"></span>
+            <span>Vyntyra Summer Internships 2026 are live now</span>
+            <span class="dot" aria-hidden="true"></span>
+            <strong>Applications close on 15th April 2026 for first level of intake</strong>
+            <span class="dot" aria-hidden="true"></span>
+            <span>Apply now</span>
+          </div>
+        </div>
         <div class="hero-grid">
           <div class="hero-copy">
             <p class="eyebrow">Program Prospectus</p>
@@ -82,14 +96,13 @@
               edition will welcome 300–400 engineering students and 20 MBA students into a democratized tech-upskilling
               runway. We focus on Tier 2 and Tier 3 colleges, turning regionally rooted talent into industry-ready leaders.
             </p>
-            <script id="razorpay-checkout-sdk" src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
             <div class="hero-stats">
               <div>
-                <strong>300–400</strong>
+                <strong>400</strong>
                 <span>Engineering seats</span>
               </div>
               <div>
-                <strong>20</strong>
+                <strong>50+</strong>
                 <span>MBA seats</span>
               </div>
               <div>
@@ -171,7 +184,7 @@
               </div>
             </aside>
             <div class="tracks-branches">
-              <article class="branch-row" style="--branch-color: #44d9dd;">
+              <article class="branch-row" style="--branch-color: #3b7fa9;">
                 <div class="branch-link" aria-hidden="true"></div>
                 <div class="branch-card">
                   <h4>Full Stack Development</h4>
@@ -185,7 +198,7 @@
                   </ul>
                 </div>
               </article>
-              <article class="branch-row" style="--branch-color: #5bd8be;">
+              <article class="branch-row" style="--branch-color: #4a8896;">
                 <div class="branch-link" aria-hidden="true"></div>
                 <div class="branch-card">
                   <h4>Data &amp; Intelligence</h4>
@@ -199,7 +212,7 @@
                   </ul>
                 </div>
               </article>
-              <article class="branch-row" style="--branch-color: #76c8ff;">
+              <article class="branch-row" style="--branch-color: #547ca0;">
                 <div class="branch-link" aria-hidden="true"></div>
                 <div class="branch-card">
                   <h4>Infrastructure &amp; Ops</h4>
@@ -213,7 +226,7 @@
                   </ul>
                 </div>
               </article>
-              <article class="branch-row" style="--branch-color: #87a4ff;">
+              <article class="branch-row" style="--branch-color: #5f7793;">
                 <div class="branch-link" aria-hidden="true"></div>
                 <div class="branch-card">
                   <h4>Core Engineering</h4>
@@ -227,7 +240,7 @@
                   </ul>
                 </div>
               </article>
-              <article class="branch-row" style="--branch-color: #aa90ff;">
+              <article class="branch-row" style="--branch-color: #667489;">
                 <div class="branch-link" aria-hidden="true"></div>
                 <div class="branch-card">
                   <h4>Design &amp; Creative</h4>
@@ -241,7 +254,7 @@
                   </ul>
                 </div>
               </article>
-              <article class="branch-row" style="--branch-color: #c07dff;">
+              <article class="branch-row" style="--branch-color: #6d7082;">
                 <div class="branch-link" aria-hidden="true"></div>
                 <div class="branch-card">
                   <h4>Management Track</h4>
@@ -317,20 +330,20 @@
         <section id="journey" class="journey-section">
           <div class="section-heading">
             <p class="eyebrow">Internship Journey</p>
-            <h2>Phase-wise momentum</h2>
+            <h2>13-week momentum</h2>
           </div>
           <div class="timeline">
             <div class="timeline-item">
               <span>Phase I · Foundation</span>
-              <p>2 weeks of intensive technical training through Vyntyra Academy modules.</p>
+              <p>4 weeks of intensive technical training through Vyntyra Academy modules.</p>
             </div>
             <div class="timeline-item">
               <span>Phase II · Implementation</span>
-              <p>4 weeks building under supervision on internal R&amp;D or client-scalable modules.</p>
+              <p>6 weeks building under supervision on internal R&amp;D or client-scalable modules.</p>
             </div>
             <div class="timeline-item">
               <span>Phase III · Career Launch</span>
-              <p>2 weeks of professional grooming, final showcases, and placement-ready mock interviews.</p>
+              <p>3 weeks of professional grooming, final showcases, and placement-ready mock interviews.</p>
             </div>
           </div>
         </section>
@@ -369,7 +382,32 @@
               <p>Extended immersive internship for advanced project ownership and stronger portfolio outcomes.</p>
             </article>
           </div>
-          <p class="pricing-note">Optional add-ons: Workshop Certificate from Company (₹199) and Mock Interviews (₹499).</p>
+
+          <div class="pricing-subsection" aria-label="Core programming languages pricing">
+            <h3>Core Programming Languages Fee</h3>
+            <div class="pricing-grid core-pricing-grid">
+              <article class="pricing-card core-pricing-card">
+                <h4>Fixed Plan (From Application Form)</h4>
+                <p class="pricing-amount">₹199</p>
+                <p><strong>Select Duration:</strong> Core Programming Track - Fixed</p>
+                <p><strong>Select Add-ons:</strong></p>
+                <ul class="core-addon-list">
+                  <li>Advanced AI Tools Workshop - ₹199</li>
+                  <li>Mock Interviews (5-10 interviews) - ₹499</li>
+                  <li>Resume Enhancing - Free</li>
+                </ul>
+                <p>Applicable for all core programming language plans:</p>
+                <ul class="core-plan-list">
+                  <li>C++</li>
+                  <li>JAVA</li>
+                  <li>PYTHON</li>
+                  <li>JAVASCRIPT</li>
+                  <li>DATABASE</li>
+                </ul>
+              </article>
+            </div>
+          </div>
+          <p class="pricing-note">Optional add-ons: Advanced AI Tools Workshop (₹199) and Mock Interviews (₹499).</p>
         </section>
 
         <section id="team" class="team-section">
@@ -502,7 +540,7 @@
                 College Location
                 <input type="text" name="college_location" placeholder="City, State" required />
               </label>
-              <label>
+              <label class="preferred-domain-field">
                 Preferred Domain
                 <select name="preferred_domain" id="preferred_domain" required>
                   <option value="">Select a track first to unlock duration & pricing</option>
@@ -530,6 +568,9 @@
                     <option value="Project Management">Project Management</option>
                     <option value="Business Development">Business Development</option>
                     <option value="Operations Management">Operations Management</option>
+                  </optgroup>
+                  <optgroup label="Special">
+                    <option value="Test">Test (Fixed ₹1)</option>
                   </optgroup>
                 </select>
               </label>
@@ -560,7 +601,7 @@
                   <div class="addons-list-inline">
                     <label class="addon-option-inline">
                       <input type="checkbox" name="addon" value="workshop" data-addon-price="199" />
-                      <span><em>Workshop Certificate from Company</em><strong>₹199</strong></span>
+                      <span><em>Advanced AI Tools Workshop</em><strong>₹199</strong></span>
                     </label>
                     <label class="addon-option-inline">
                       <input type="checkbox" name="addon" value="mock-interviews" data-addon-price="499" />
@@ -868,6 +909,12 @@
 
         <div class="footer-bottom">
           <p>&copy; 2025-26 Vyntyra Consultancy Services. All rights reserved.</p>
+          <p class="footer-visitor-counter" aria-live="polite">
+            <span class="visitor-dot" aria-hidden="true"></span>
+            <span class="visitor-label">Total Visitors</span>
+            <strong id="visitor-count" class="visitor-count-value">--</strong>
+            <span id="visitor-count-updated" class="visitor-updated-at">Updating...</span>
+          </p>
           <div style="margin-top: 12px; padding: 15px; background: rgba(0, 217, 255, 0.08); border-left: 3px solid rgba(0, 217, 255, 0.4); border-radius: 4px;">
             <p style="font-size: 0.75rem; color: rgba(247, 249, 255, 0.7); margin: 0 0 6px 0;">
               <strong style="color: #00d9ff;">Registered Office:</strong> Unit no 601, 5th Floor, Grand Palace, Plot no 238 &amp; 239, Dwaraka Nagar, Visakhapatnam, Andhra Pradesh 530016
@@ -993,6 +1040,79 @@ document.addEventListener("DOMContentLoaded", () => {
 <button id="topBtn" aria-label="Scroll to top">
   ↑
 </button>
+
+<button id="chatbot-launch" class="chatbot-launch" aria-label="Open Ask AI" aria-expanded="false">
+  <svg class="chatbot-bot" viewBox="0 0 220 280" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="botShell" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#f2f5fb" />
+        <stop offset="100%" stop-color="#c4cad6" />
+      </linearGradient>
+      <linearGradient id="botScreen" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#1a4764" />
+        <stop offset="100%" stop-color="#0b223b" />
+      </linearGradient>
+      <radialGradient id="botGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#63f2ff" stop-opacity="0.95" />
+        <stop offset="100%" stop-color="#3dd8ff" stop-opacity="0" />
+      </radialGradient>
+    </defs>
+
+    <ellipse cx="110" cy="262" rx="46" ry="12" fill="rgba(70,120,180,0.2)" />
+
+    <ellipse cx="110" cy="24" rx="26" ry="10" fill="url(#botShell)" />
+    <rect x="100" y="26" width="20" height="15" rx="10" fill="url(#botShell)" />
+
+    <rect x="38" y="34" width="144" height="112" rx="44" fill="url(#botShell)" />
+    <rect x="52" y="48" width="116" height="84" rx="28" fill="url(#botScreen)" />
+
+    <g class="bot-eyes">
+      <circle cx="82" cy="86" r="15" fill="url(#botGlow)" />
+      <circle cx="138" cy="86" r="15" fill="url(#botGlow)" />
+      <ellipse cx="80" cy="82" rx="7" ry="4" fill="#cffdff" opacity="0.9" />
+      <ellipse cx="136" cy="82" rx="7" ry="4" fill="#cffdff" opacity="0.9" />
+    </g>
+    <ellipse cx="110" cy="107" rx="18" ry="11" fill="#4ce2fb" />
+
+    <rect x="70" y="128" width="80" height="28" rx="14" fill="#b8becb" />
+
+    <ellipse cx="110" cy="196" rx="58" ry="70" fill="url(#botShell)" />
+    <rect x="70" y="174" width="80" height="44" rx="16" fill="#bdc3cf" />
+
+    <path d="M52 156 C34 164 28 192 30 222 C33 242 46 248 56 237 C66 224 69 205 72 183 Z" fill="url(#botShell)" />
+    <path d="M168 156 C186 164 192 192 190 222 C187 242 174 248 164 237 C154 224 151 205 148 183 Z" fill="url(#botShell)" />
+
+    <ellipse cx="74" cy="66" rx="16" ry="9" fill="rgba(255,255,255,0.38)" />
+    <ellipse cx="102" cy="178" rx="20" ry="34" fill="rgba(255,255,255,0.22)" />
+  </svg>
+  <span class="chatbot-launch-tag">Ask AI</span>
+</button>
+
+<section id="chatbot-panel" class="chatbot-panel" aria-hidden="true" aria-label="Vyntyra AI assistant">
+  <header class="chatbot-header">
+    <div>
+      <strong>Vyntyra AI</strong>
+      <small>24/7 instant support</small>
+    </div>
+    <button type="button" id="chatbot-close" class="chatbot-close" aria-label="Close assistant">&times;</button>
+  </header>
+
+  <div id="chatbot-messages" class="chatbot-messages" aria-live="polite"></div>
+
+  <div class="chatbot-quick-actions" aria-label="Quick questions">
+    <button type="button" class="chatbot-chip" data-chatbot-query="pricing">Pricing</button>
+    <button type="button" class="chatbot-chip" data-chatbot-query="tracks">Tracks</button>
+    <button type="button" class="chatbot-chip" data-chatbot-query="leadership team">Leadership</button>
+    <button type="button" class="chatbot-chip" data-chatbot-query="deadline">Deadline</button>
+    <button type="button" class="chatbot-chip" data-chatbot-query="apply now">Apply</button>
+  </div>
+
+  <form id="chatbot-form" class="chatbot-form" autocomplete="off">
+    <input id="chatbot-input" type="text" placeholder="Ask about fees, tracks, timeline, contact..." aria-label="Ask Vyntyra assistant" />
+    <button type="button" id="chatbot-voice" class="chatbot-voice" aria-label="Speak your question">Mic</button>
+    <button type="submit" class="chatbot-send" aria-label="Send message">Send</button>
+  </form>
+</section>
   </body>
 </html>
 

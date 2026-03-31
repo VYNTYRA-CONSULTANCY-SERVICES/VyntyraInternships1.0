@@ -23,6 +23,10 @@ const RAZORPAY_KEY = "rzp_live_SVAKT9bXZhJT85";
 const PAYMENT_PENDING_APP_KEY = "vyntyra_pending_application_id";
 const RAZORPAY_SDK_ID = "razorpay-checkout-sdk";
 const CORE_FIXED_PRICE = 199;
+const TEST_DOMAIN = "Test";
+const TEST_FIXED_PRICE = 1;
+const VISITOR_COUNT_REFRESH_MS = 20000;
+const VISITOR_TIMESTAMP_REFRESH_MS = 1000;
 
 // Fee amount in INR
 const APPLICATION_FEE = 499;
@@ -34,6 +38,8 @@ let paymentInfraWarmed = false;
 let paymentSessionPromise;
 let prefetchedRazorpayOrder;
 let prefetchedOrderAmount;
+let lastVisitorUpdatedAtMs = null;
+let visitorTimestampTimerId = null;
 
 const CORE_PROGRAMMING_DOMAINS = new Set(["C++", "JAVA", "PYTHON", "JAVASCRIPT", "DATABASE"]);
 
@@ -263,7 +269,423 @@ function setupResumeInputMode() {
   }
 }
 
+function formatVisitorCount(count) {
+  if (!Number.isFinite(count) || count < 0) {
+    return "--";
+  }
+  return Math.floor(count).toLocaleString("en-IN");
+}
+
+function animateVisitorCountUpdate(counterEl, nextValue) {
+  if (!counterEl) {
+    return;
+  }
+
+  const currentValue = String(counterEl.textContent || "").trim();
+  if (currentValue === nextValue) {
+    return;
+  }
+
+  counterEl.classList.add("is-updating");
+  window.setTimeout(() => {
+    counterEl.textContent = nextValue;
+    counterEl.classList.remove("is-updating");
+  }, 140);
+}
+
+function formatUpdatedAtLabel(timestampMs) {
+  if (!Number.isFinite(timestampMs)) {
+    return "Updating...";
+  }
+
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - timestampMs) / 1000));
+  if (elapsedSeconds < 5) {
+    return "Updated just now";
+  }
+  if (elapsedSeconds < 60) {
+    return `Updated ${elapsedSeconds}s ago`;
+  }
+
+  const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+  if (elapsedMinutes < 60) {
+    return `Updated ${elapsedMinutes}m ago`;
+  }
+
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  return `Updated ${elapsedHours}h ago`;
+}
+
+function updateVisitorTimestamp(updatedAtEl) {
+  if (!updatedAtEl) {
+    return;
+  }
+
+  lastVisitorUpdatedAtMs = Date.now();
+  updatedAtEl.classList.add("is-refreshing");
+  updatedAtEl.textContent = formatUpdatedAtLabel(lastVisitorUpdatedAtMs);
+  window.setTimeout(() => {
+    updatedAtEl.classList.remove("is-refreshing");
+  }, 360);
+}
+
+function startVisitorTimestampTicker(updatedAtEl) {
+  if (!updatedAtEl || visitorTimestampTimerId) {
+    return;
+  }
+
+  visitorTimestampTimerId = window.setInterval(() => {
+    updatedAtEl.textContent = formatUpdatedAtLabel(lastVisitorUpdatedAtMs);
+  }, VISITOR_TIMESTAMP_REFRESH_MS);
+}
+
+async function updateVisitorCountTotal() {
+  const visitorCountEl = document.getElementById("visitor-count");
+  const updatedAtEl = document.getElementById("visitor-count-updated");
+  if (!visitorCountEl) return;
+
+  try {
+    const response = await apiFetch("/metrics/visitors", { method: "GET" });
+    if (!response.ok) return;
+
+    const payload = await readJsonResponse(response, "Unable to load total visitor count");
+    const nextValue = formatVisitorCount(Number(payload.count));
+    animateVisitorCountUpdate(visitorCountEl, nextValue);
+    updateVisitorTimestamp(updatedAtEl);
+  } catch (error) {
+    // Leave counter unchanged on transient network failures.
+  }
+}
+
+async function registerVisitorHit() {
+  try {
+    const response = await apiFetch("/metrics/visitors/hit", { method: "POST" });
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = await readJsonResponse(response, "Unable to register visitor hit");
+    const visitorCountEl = document.getElementById("visitor-count");
+    const updatedAtEl = document.getElementById("visitor-count-updated");
+    const nextValue = formatVisitorCount(Number(payload.count));
+    animateVisitorCountUpdate(visitorCountEl, nextValue);
+    updateVisitorTimestamp(updatedAtEl);
+  } catch (error) {
+    // Fall back to read-only refresh when hit tracking fails.
+    await updateVisitorCountTotal();
+  }
+}
+
+function setupVisitorCounter() {
+  const visitorCountEl = document.getElementById("visitor-count");
+  const updatedAtEl = document.getElementById("visitor-count-updated");
+  if (!visitorCountEl) return;
+
+  startVisitorTimestampTicker(updatedAtEl);
+  registerVisitorHit();
+  setInterval(updateVisitorCountTotal, VISITOR_COUNT_REFRESH_MS);
+}
+
+function scheduleAfterPaint(callback) {
+  if (typeof window.requestAnimationFrame === "function") {
+    window.requestAnimationFrame(() => {
+      window.setTimeout(callback, 0);
+    });
+    return;
+  }
+  window.setTimeout(callback, 0);
+}
+
+function setupSiteChatbot() {
+  const launchBtn = document.getElementById("chatbot-launch");
+  const panel = document.getElementById("chatbot-panel");
+  const closeBtn = document.getElementById("chatbot-close");
+  const messagesEl = document.getElementById("chatbot-messages");
+  const form = document.getElementById("chatbot-form");
+  const input = document.getElementById("chatbot-input");
+  const voiceBtn = document.getElementById("chatbot-voice");
+  const quickButtons = document.querySelectorAll(".chatbot-chip");
+
+  if (!launchBtn || !panel || !messagesEl || !form || !input) {
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+  let voiceOutputEnabled = true;
+  let selectedVoice = null;
+
+  const normalizeText = (value) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9+\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const preferredVoiceNames = [
+    "Microsoft Neerja",
+    "Microsoft Heera",
+    "Google UK English Female",
+    "Google UK English Male",
+    "Google US English",
+    "Samantha",
+  ];
+
+  const pickBestVoice = (voices) => {
+    if (!Array.isArray(voices) || !voices.length) {
+      return null;
+    }
+
+    for (const preferred of preferredVoiceNames) {
+      const exact = voices.find((voice) => String(voice.name || "") === preferred);
+      if (exact) {
+        return exact;
+      }
+
+      const contains = voices.find((voice) => String(voice.name || "").includes(preferred));
+      if (contains) {
+        return contains;
+      }
+    }
+
+    return (
+      voices.find((voice) => /^en[-_](IN|GB|US)$/i.test(String(voice.lang || ""))) ||
+      voices.find((voice) => String(voice.lang || "").toLowerCase().startsWith("en")) ||
+      voices[0]
+    );
+  };
+
+  const refreshSelectedVoice = () => {
+    if (!("speechSynthesis" in window)) {
+      selectedVoice = null;
+      return;
+    }
+    selectedVoice = pickBestVoice(window.speechSynthesis.getVoices());
+  };
+
+  const cycleVoice = () => {
+    if (!("speechSynthesis" in window)) {
+      return null;
+    }
+
+    const allVoices = window.speechSynthesis
+      .getVoices()
+      .filter((voice) => String(voice.lang || "").toLowerCase().startsWith("en"));
+
+    if (!allVoices.length) {
+      return null;
+    }
+
+    if (!selectedVoice) {
+      selectedVoice = allVoices[0];
+      return selectedVoice;
+    }
+
+    const currentIndex = allVoices.findIndex((voice) => voice.name === selectedVoice.name);
+    const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % allVoices.length : 0;
+    selectedVoice = allVoices[nextIndex];
+    return selectedVoice;
+  };
+
+  if ("speechSynthesis" in window) {
+    refreshSelectedVoice();
+    window.speechSynthesis.addEventListener("voiceschanged", refreshSelectedVoice);
+  }
+
+  if (recognition) {
+    recognition.lang = "en-IN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event) => {
+      const transcript = String(event.results?.[0]?.[0]?.transcript || "").trim();
+      if (!transcript) return;
+      input.value = transcript;
+      processQuery(transcript);
+    };
+
+    recognition.onend = () => {
+      voiceBtn?.classList.remove("is-listening");
+      voiceBtn && (voiceBtn.textContent = voiceOutputEnabled ? "Mic" : "Mic Off");
+    };
+  } else if (voiceBtn) {
+    voiceBtn.disabled = true;
+    voiceBtn.textContent = "No Mic";
+  }
+
+  const speak = (text) => {
+    if (!voiceOutputEnabled || !("speechSynthesis" in window) || !text) {
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-IN";
+    utterance.rate = 0.94;
+    utterance.pitch = 0.95;
+    if (selectedVoice) {
+      utterance.voice = selectedVoice;
+      utterance.lang = selectedVoice.lang || utterance.lang;
+    }
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const appendMessage = (text, role = "bot") => {
+    const item = document.createElement("p");
+    item.className = `chatbot-msg ${role}`;
+    item.innerHTML = text;
+    messagesEl.appendChild(item);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  };
+
+  const getReply = (query) => {
+    const q = normalizeText(query);
+
+    if (/\b(change|switch|update)\b.*\bvoice\b|\bvoice\b.*\b(change|switch|update)\b/.test(q)) {
+      const nextVoice = cycleVoice();
+      if (!nextVoice) {
+        return {
+          text: "I could not find another English voice on this browser. You can still use text replies.",
+          speech: "I could not find another English voice on this browser.",
+        };
+      }
+      return {
+        text: `Voice changed to <strong>${nextVoice.name}</strong>.`,
+        speech: `Voice changed to ${nextVoice.name}.`,
+      };
+    }
+
+    if (/\b(apply|application|register|enroll)\b/.test(q)) {
+      return {
+        text: "You can apply from the Application Form section. <a href='#apply'>Go to Apply</a>",
+        speech: "You can apply from the Application Form section. I can take you there now.",
+      };
+    }
+
+    if (/\b(price|fee|fees|cost|payment)\b/.test(q)) {
+      return {
+        text: "Program fee options are ₹1,999 for 1.5 months, ₹2,999 for 2 months, and ₹3,999 for 3 months. Core Programming track is fixed at ₹199.",
+        speech: "Program fee options are 1,999 rupees for one and a half months, 2,999 rupees for two months, and 3,999 rupees for three months. Core programming track is fixed at 199 rupees.",
+      };
+    }
+
+    if (/\b(track|domain|course|speciali[sz]ation)\b/.test(q)) {
+      return {
+        text: "Domains include Full Stack Development, Data & Intelligence, Infrastructure & Ops, Core Engineering, Design & Creative, and Management. <a href='#tracks'>View Tracks</a>",
+        speech: "Domains include full stack development, data and intelligence, infrastructure and operations, core engineering, design and creative, and management.",
+      };
+    }
+
+    if (/\b(deadline|close|last date|last day)\b/.test(q)) {
+      return {
+        text: "Applications for the first intake level close on 15th April 2026.",
+        speech: "Applications for the first intake level close on fifteenth April 2026.",
+      };
+    }
+
+    if (/\b(contact|phone|email|support|help line|helpline)\b/.test(q)) {
+      return {
+        text: "Support: support@vyntyraconsultancyservices.in, Internships: internships@vyntyraconsultancyservices.in, Phone: +91 93905 15106.",
+        speech: "Support email is support at vyntyraconsultancyservices dot in. Internship email is internships at vyntyraconsultancyservices dot in. Phone number is plus 91 93905 15106.",
+      };
+    }
+
+    if (/\b(journey|timeline|duration|weeks|phase)\b/.test(q)) {
+      return {
+        text: "Internship journey is 13 weeks: Foundation (4 weeks), Implementation (6 weeks), and Career Launch (3 weeks). <a href='#journey'>View Journey</a>",
+        speech: "Internship journey is 13 weeks with foundation, implementation, and career launch phases.",
+      };
+    }
+
+    if (/\b(eligible|eligibility|who can apply|intake|batch)\b/.test(q)) {
+      return {
+        text: "Eligibility targets pre-final and final year students from 2027 and 2028 graduating batches, with focus on Tier 2 and Tier 3 colleges.",
+        speech: "Eligibility targets pre-final and final year students from 2027 and 2028 graduating batches, with focus on tier 2 and tier 3 colleges.",
+      };
+    }
+
+    return {
+      text: "I answer only verified details from this page to keep responses accurate. Try: fees, tracks, eligibility, deadline, contact, or apply.",
+      speech: "I answer verified details from this page. Ask me about fees, tracks, eligibility, deadline, contact, or apply.",
+    };
+  };
+
+  const processQuery = (query) => {
+    const cleaned = String(query || "").trim();
+    if (!cleaned) return;
+
+    appendMessage(cleaned, "user");
+    const reply = getReply(cleaned);
+    window.setTimeout(() => {
+      appendMessage(reply.text, "bot");
+      speak(reply.speech || reply.text.replace(/<[^>]*>/g, " "));
+    }, 220);
+  };
+
+  const openPanel = () => {
+    panel.classList.add("is-open");
+    panel.setAttribute("aria-hidden", "false");
+    launchBtn.setAttribute("aria-expanded", "true");
+    if (!messagesEl.children.length) {
+      appendMessage("Hello, I am Vyntyra Assistant. Ask me anything about tracks, fees, deadlines, or application.", "bot");
+    }
+    input.focus();
+  };
+
+  const closePanel = () => {
+    panel.classList.remove("is-open");
+    panel.setAttribute("aria-hidden", "true");
+    launchBtn.setAttribute("aria-expanded", "false");
+  };
+
+  launchBtn.addEventListener("click", () => {
+    if (panel.classList.contains("is-open")) {
+      closePanel();
+      return;
+    }
+    openPanel();
+  });
+
+  closeBtn?.addEventListener("click", closePanel);
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    scheduleAfterPaint(() => {
+      processQuery(input.value);
+    });
+    input.value = "";
+  });
+
+  quickButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const query = button.getAttribute("data-chatbot-query") || "";
+      scheduleAfterPaint(() => {
+        processQuery(query);
+      });
+    });
+  });
+
+  voiceBtn?.addEventListener("click", () => {
+    if (!recognition) {
+      return;
+    }
+    if (voiceBtn.classList.contains("is-listening")) {
+      recognition.stop();
+      return;
+    }
+    voiceBtn.classList.add("is-listening");
+    voiceBtn.textContent = "Listening";
+    recognition.start();
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && panel.classList.contains("is-open")) {
+      closePanel();
+    }
+  });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  setupSiteChatbot();
+
   const form = document.querySelector(".apply-form");
   const payBtn = document.getElementById("pay-registration-fee-btn");
   const submitBtn = form?.querySelector('button[type="submit"]');
@@ -288,6 +710,7 @@ document.addEventListener("DOMContentLoaded", () => {
   handlePayURedirectState();
   setupPaymentGatewayModal(paymentGatewayModal);
   setupResumeInputMode();
+  setupVisitorCounter();
 
   // Handle form submission via JS
   form.addEventListener("submit", (e) => {
@@ -301,11 +724,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  form.addEventListener("input", invalidatePrefetch, true);
+  let inputInvalidateRafId = null;
+  const scheduleInvalidatePrefetch = () => {
+    if (isPaymentConfirmed || inputInvalidateRafId !== null) {
+      return;
+    }
+
+    inputInvalidateRafId = window.requestAnimationFrame(() => {
+      inputInvalidateRafId = null;
+      resetPaymentSessionPrefetch();
+    });
+  };
+
+  form.addEventListener("input", scheduleInvalidatePrefetch, true);
   form.addEventListener("change", invalidatePrefetch, true);
 
   function applyDomainPricingState(selectedValue) {
     const hasDomainSelection = Boolean(selectedValue);
+    const isTestDomain = selectedValue === TEST_DOMAIN;
 
     if (!durationPricingSection) {
       return;
@@ -348,7 +784,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const isCoreProgrammingDomain = CORE_PROGRAMMING_DOMAINS.has(selectedValue);
 
     if (durationSelect) {
-      if (isCoreProgrammingDomain) {
+      if (isTestDomain) {
+        durationSelect.innerHTML = '<option value="fixed-test" data-price="1" selected>Test Track - ₹1 (Fixed)</option>';
+        durationSelect.disabled = true;
+      } else if (isCoreProgrammingDomain) {
         durationSelect.innerHTML = '<option value="fixed-core" data-price="199" selected>Core Programming Track - ₹199 (Fixed)</option>';
         durationSelect.disabled = true;
       } else {
@@ -373,7 +812,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     addonCheckboxes.forEach((checkbox) => {
       checkbox.checked = false;
-      checkbox.disabled = false;
+      checkbox.disabled = isTestDomain;
     });
 
     updatePriceSummary();
@@ -394,7 +833,7 @@ document.addEventListener("DOMContentLoaded", () => {
     payBtn.classList.add("visible");
     payBtn.addEventListener("mouseenter", warmPaymentInfrastructure, { once: true });
     payBtn.addEventListener("focus", warmPaymentInfrastructure, { once: true });
-    payBtn.addEventListener("touchstart", warmPaymentInfrastructure, { once: true });
+    payBtn.addEventListener("touchstart", warmPaymentInfrastructure, { once: true, passive: true });
     payBtn.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -531,22 +970,25 @@ function setupResumeHelpModal() {
  */
 function updatePriceSummary() {
   const selectedDomain = String(document.getElementById("preferred_domain")?.value || "").trim();
+  const isTestDomain = selectedDomain === TEST_DOMAIN;
   const isCoreProgrammingDomain = CORE_PROGRAMMING_DOMAINS.has(selectedDomain);
   const durationSelect = document.getElementById("internship_duration");
   const selectedDurationOption = durationSelect?.selectedOptions?.[0] || null;
   const addonCheckboxes = document.querySelectorAll('input[name="addon"]:checked');
   
-  // Base price: ₹199 for core domains (fixed), or duration-based price for non-core
-  let basePrice = isCoreProgrammingDomain ? CORE_FIXED_PRICE : 2999;
-  if (!isCoreProgrammingDomain && selectedDurationOption) {
+  // Base price: fixed ₹1 for Test, fixed ₹199 for core domains, or duration-based for non-core.
+  let basePrice = isTestDomain ? TEST_FIXED_PRICE : (isCoreProgrammingDomain ? CORE_FIXED_PRICE : 2999);
+  if (!isTestDomain && !isCoreProgrammingDomain && selectedDurationOption) {
     basePrice = parseInt(selectedDurationOption.dataset.price || "2999", 10);
   }
   
-  // Add-ons are available for ALL domains (core and non-core)
+  // Add-ons are disabled for Test domain so the amount remains fixed at ₹1.
   let addonsTotal = 0;
-  addonCheckboxes.forEach(checkbox => {
-    addonsTotal += parseInt(checkbox.dataset.addonPrice || "0", 10);
-  });
+  if (!isTestDomain) {
+    addonCheckboxes.forEach(checkbox => {
+      addonsTotal += parseInt(checkbox.dataset.addonPrice || "0", 10);
+    });
+  }
   
   const totalPrice = basePrice + addonsTotal;
   
@@ -564,10 +1006,16 @@ function updatePriceSummary() {
   const addonsField = document.getElementById("selected_addons");
   const priceField = document.getElementById("internship_price");
 
-  if (durationField) durationField.value = isCoreProgrammingDomain ? "fixed-core" : (durationSelect?.value || "2");
+  if (durationField) {
+    if (isTestDomain) {
+      durationField.value = "fixed-test";
+    } else {
+      durationField.value = isCoreProgrammingDomain ? "fixed-core" : (durationSelect?.value || "2");
+    }
+  }
   if (addonsField) {
     const selectedAddons = Array.from(addonCheckboxes).map(cb => cb.value).join(", ");
-    addonsField.value = selectedAddons;
+    addonsField.value = isTestDomain ? "" : selectedAddons;
   }
   if (priceField) priceField.value = totalPrice;
 }
@@ -657,6 +1105,8 @@ function openPaymentGatewayModal() {
     setFormStatus(statusEl, "Please complete all required fields before selecting payment gateway.", "warning");
     return;
   }
+
+  setFormStatus(statusEl, "Estimated wait time is 5 min.", "info");
 
   warmPaymentInfrastructure();
   preparePaymentSession({ prefetchRazorpayOrder: true }).catch(() => {

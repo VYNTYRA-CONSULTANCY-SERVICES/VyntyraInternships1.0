@@ -7,6 +7,10 @@ import { uploadBufferToS3 } from "./s3.js";
 const COMPANY_WEBSITE = "https://vyntyraconsultancyservices.in";
 const COMPANY_NAME = "Vyntyra Consultancy Services";
 
+const getTransactionId = (payment) => {
+  return payment.razorpayPaymentId || payment.payuPaymentId || payment.payuTxnId || "N/A";
+};
+
 const getNextInvoiceNumber = async () => {
   const year = new Date().getFullYear();
   const key = `invoice:${year}`;
@@ -64,7 +68,7 @@ const buildInvoiceBuffer = async ({ application, payment, invoiceNumber }) => {
   const paidAt = payment.timestamp ? new Date(payment.timestamp).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "N/A";
   const reference = payment.cardLast4 ? `Card ****${payment.cardLast4}` : payment.vpa ?? "N/A";
 
-  doc.fontSize(10).text(`Transaction ID: ${payment.razorpayPaymentId ?? "N/A"}`);
+  doc.fontSize(10).text(`Transaction ID: ${getTransactionId(payment)}`);
   doc.text(`Payment Time (IST): ${paidAt}`);
   doc.text(`Method: ${paymentMethod}`);
   doc.text(`Reference: ${reference}`);
@@ -75,6 +79,10 @@ const buildInvoiceBuffer = async ({ application, payment, invoiceNumber }) => {
   doc.moveDown(0.5);
   doc.fontSize(10).text(`Application Fee Paid: INR ${payment.amount}`);
   doc.text(`Currency: ${payment.currency}`);
+  doc.text(`Registration ID: ${application.registrationId ?? "N/A"}`);
+  doc.text(`Domain: ${application.preferredDomain ?? "N/A"}`);
+  doc.text(`Duration: ${application.selectedDuration ?? "N/A"}`);
+  doc.text(`Add-ons: ${application.selectedAddons ?? "None"}`);
 
   doc.moveDown(3);
   doc.fontSize(10).fillColor("#666").text("This is a system generated invoice and does not require signature.");
@@ -109,7 +117,7 @@ export const generateAndStoreInvoice = async ({ application, payment }) => {
     paymentDetails: {
       method: payment.method,
       timestamp: payment.timestamp,
-      transactionId: payment.razorpayPaymentId,
+      transactionId: getTransactionId(payment),
       last4OrVpa: payment.cardLast4 || payment.vpa,
       amount: payment.amount,
       currency: payment.currency,

@@ -60,8 +60,69 @@ app.use("/api/*", async (c, next) => {
 
 app.use("/api/*", withBindingsValidation);
 
+app.use("/api/*", async (c, next) => {
+  await next();
+  c.header("Cache-Control", "no-store, no-cache, must-revalidate");
+  c.header("Pragma", "no-cache");
+  c.header("Expires", "0");
+});
+
 app.get("/keep-alive", (c) => c.json({ status: "alive", ts: Date.now() }));
 app.get("/health", (c) => c.json({ status: "ok", ts: Date.now() }));
+
+const VISITOR_COUNTER_KEY = "visitors:internships-home";
+
+const ensureVisitorCounterTable = async (db) => {
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS visitor_counters (
+        key TEXT PRIMARY KEY,
+        total_count INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`
+    )
+    .run();
+};
+
+app.get("/api/metrics/visitors", async (c) => {
+  try {
+    await ensureVisitorCounterTable(c.env.DB);
+
+    const row = await c.env.DB.prepare("SELECT total_count FROM visitor_counters WHERE key = ?")
+      .bind(VISITOR_COUNTER_KEY)
+      .first();
+
+    return c.json({ count: Number(row?.total_count || 0) });
+  } catch (error) {
+    console.error("/api/metrics/visitors error", error);
+    return c.json({ message: "Failed to fetch total visitors" }, 500);
+  }
+});
+
+app.post("/api/metrics/visitors/hit", async (c) => {
+  try {
+    await ensureVisitorCounterTable(c.env.DB);
+
+    await c.env.DB.prepare(
+      `INSERT INTO visitor_counters (key, total_count, updated_at)
+       VALUES (?, 1, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET
+         total_count = total_count + 1,
+         updated_at = datetime('now')`
+    )
+      .bind(VISITOR_COUNTER_KEY)
+      .run();
+
+    const row = await c.env.DB.prepare("SELECT total_count FROM visitor_counters WHERE key = ?")
+      .bind(VISITOR_COUNTER_KEY)
+      .first();
+
+    return c.json({ count: Number(row?.total_count || 0) }, 201);
+  } catch (error) {
+    console.error("/api/metrics/visitors/hit error", error);
+    return c.json({ message: "Failed to update total visitors" }, 500);
+  }
+});
 
 const requiredFields = [
   "full_name",

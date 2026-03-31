@@ -13,6 +13,12 @@ const applicationSchema = new mongoose.Schema({
   placementContact: { type: String, required: true },
   selectedDuration: { type: String, sparse: true },
   selectedAddons: { type: String, sparse: true },
+  registrationId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true,
+  },
   internshipPrice: { type: Number, sparse: true },
   resumePath: { type: String },
   resumeUrl: { type: String, sparse: true },

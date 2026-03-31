@@ -3,7 +3,6 @@ import crypto from "crypto";
 import Application from "../models/Application.js";
 import Payment from "../models/Payment.js";
 import { getRazorpayClient } from "../config/razorpay.js";
-import { publishJob } from "../services/rabbitmq.js";
 import { handlePaymentSuccess } from "../jobs/handlers.js";
 
 const router = Router();
@@ -15,6 +14,7 @@ const PAYMENT_FAILURE_URL = process.env.PAYMENT_FAILURE_URL || `${FRONTEND_BASE_
 const BACKEND_BASE_URL = (process.env.BACKEND_BASE_URL || "https://vyntyrainternships-backend.onrender.com")
   .replace(/\/+$/, "");
 const enablePaymentTimingLogs = String(process.env.ENABLE_REQUEST_TIMING_LOGS ?? "false").toLowerCase() === "true";
+const TEST_DOMAIN = "test";
 
 const toTwoDecimals = (value) => Number(value).toFixed(2);
 const sha512 = (value) => crypto.createHash("sha512").update(value).digest("hex");
@@ -30,6 +30,19 @@ const logPaymentTiming = (label, metadata = {}) => {
     .map(([key, value]) => `${key}=${value}`)
     .join(" ");
   console.log(`[payment-timing] ${label}${metadataString ? ` ${metadataString}` : ""}`);
+};
+
+const resolveFeeAmount = (application, requestedAmount) => {
+  const preferredDomain = String(application?.preferredDomain || "").trim().toLowerCase();
+  if (preferredDomain === TEST_DOMAIN) {
+    return 1;
+  }
+
+  const normalized = Number(requestedAmount ?? process.env.APPLICATION_FEE_INR ?? 499);
+  if (!Number.isFinite(normalized) || normalized <= 0) {
+    return null;
+  }
+  return normalized;
 };
 
 const getPayURequiredConfig = () => {
@@ -59,6 +72,15 @@ const mapPayUMethodToInternal = (mode) => {
   return null;
 };
 
+const mapRazorpayMethodToInternal = (method) => {
+  const normalized = String(method || "").toLowerCase();
+  if (normalized.includes("upi")) return "upi";
+  if (normalized.includes("card")) return "card";
+  if (normalized.includes("netbanking")) return "netbanking";
+  if (normalized.includes("wallet")) return "wallet";
+  return null;
+};
+
 const buildPayUResponseHashString = (payload, salt, key) => {
   const status = String(payload.status || "");
   const udf1 = String(payload.udf1 || "");
@@ -82,36 +104,7 @@ const buildPayUResponseHashString = (payload, salt, key) => {
   return additionalCharges ? `${additionalCharges}|${base}` : base;
 };
 
-const runPostPaymentWorkflow = async ({ paymentId, applicationId }) => {
-  // Non-blocking - don't wait for this to complete
-  try {
-    const publishSuccess = await Promise.race([
-      publishJob("payment-success", {
-        applicationId: applicationId.toString(),
-        paymentId: paymentId.toString(),
-      }),
-      new Promise((resolve) => {
-        setTimeout(() => resolve(false), 500);
-      }),
-    ]);
-    
-    if (!publishSuccess) {
-      console.warn("Queue failed, running inline");
-      // Fire and forget inline handler
-      handlePaymentSuccess({
-        applicationId: applicationId.toString(),
-        paymentId: paymentId.toString(),
-      }).catch(err => console.warn("Inline handler failed", err?.message));
-    }
-  } catch (queueError) {
-    console.warn("Queue error", queueError?.message);
-    // Fire and forget inline handler
-    handlePaymentSuccess({
-      applicationId: applicationId.toString(),
-      paymentId: paymentId.toString(),
-    }).catch(err => console.warn("Inline handler failed", err?.message));
-  }
-};
+// runPostPaymentWorkflow removed: all post-payment actions now run inline
 
 /**
  * POST /api/payments/create-order
@@ -123,14 +116,13 @@ router.post("/create-order", async (req, res, next) => {
   try {
     const razorpay = getRazorpayClient();
     const { applicationId, amount } = req.body;
-    const feeAmount = Number(amount ?? process.env.APPLICATION_FEE_INR ?? 499);
 
-    if (!applicationId || !Number.isFinite(feeAmount) || feeAmount <= 0) {
+    if (!applicationId) {
       return res.status(400).json({ message: "Missing applicationId or valid amount" });
     }
 
     const application = await Application.findById(applicationId)
-      .select("_id status email fullName")
+      .select("_id status email fullName preferredDomain")
       .lean();
     const lookupDoneNs = nowNs();
     if (!application) {
@@ -139,6 +131,11 @@ router.post("/create-order", async (req, res, next) => {
 
     if (application.status !== "PENDING_PAYMENT") {
       return res.status(400).json({ message: "Application already processed" });
+    }
+
+    const feeAmount = resolveFeeAmount(application, amount);
+    if (!Number.isFinite(feeAmount) || feeAmount <= 0) {
+      return res.status(400).json({ message: "Missing applicationId or valid amount" });
     }
 
     let order;
@@ -221,14 +218,13 @@ router.post("/payu/initiate", async (req, res, next) => {
   try {
     const { key, salt, actionUrl } = getPayURequiredConfig();
     const { applicationId, amount } = req.body;
-    const feeAmount = Number(amount ?? process.env.APPLICATION_FEE_INR ?? 499);
 
-    if (!applicationId || !Number.isFinite(feeAmount) || feeAmount <= 0) {
+    if (!applicationId) {
       return res.status(400).json({ message: "Missing applicationId or valid amount" });
     }
 
     const application = await Application.findById(applicationId)
-      .select("_id status email fullName phone")
+      .select("_id status email fullName phone preferredDomain")
       .lean();
     const lookupDoneNs = nowNs();
     if (!application) {
@@ -237,6 +233,11 @@ router.post("/payu/initiate", async (req, res, next) => {
 
     if (application.status !== "PENDING_PAYMENT") {
       return res.status(400).json({ message: "Application already processed" });
+    }
+
+    const feeAmount = resolveFeeAmount(application, amount);
+    if (!Number.isFinite(feeAmount) || feeAmount <= 0) {
+      return res.status(400).json({ message: "Missing applicationId or valid amount" });
     }
 
     const amountString = toTwoDecimals(feeAmount);
@@ -366,12 +367,15 @@ const handlePayUCallback = async (req, res, next) => {
       );
 
       if (application) {
-        runPostPaymentWorkflow({
-          applicationId: application._id,
-          paymentId: payment._id,
-        }).catch((workflowError) => {
+        // Directly handle payment success inline (no queue)
+        try {
+          await handlePaymentSuccess({
+            applicationId: application._id,
+            paymentId: payment._id,
+          });
+        } catch (workflowError) {
           console.warn("PayU post-payment workflow failed", workflowError?.message);
-        });
+        }
       }
     }
 
@@ -496,7 +500,7 @@ router.post("/verify", async (req, res, next) => {
           await Payment.findOneAndUpdate(
             { razorpayOrderId },
             {
-              method: paymentDetails.method || null,
+              method: mapRazorpayMethodToInternal(paymentDetails.method),
               vpa: paymentDetails.vpa || null,
               cardLast4,
               contact: paymentDetails.contact || null,
@@ -506,10 +510,9 @@ router.post("/verify", async (req, res, next) => {
           console.warn("Failed to update payment additional details", error?.message);
         }
       }
-
-      // Run post-payment workflow asynchronously
+      // Run post-payment workflow inline (no queue)
       try {
-        await runPostPaymentWorkflow({
+        await handlePaymentSuccess({
           applicationId: updatedApplication._id,
           paymentId: updatedPayment._id,
         });

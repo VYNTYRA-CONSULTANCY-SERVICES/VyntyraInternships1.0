@@ -9,6 +9,7 @@ import dotenv from "dotenv";
 import connectDB from "./src/config/db.js";
 import applicationsRouter from "./src/routes/applications.js";
 import paymentsRouter from "./src/routes/payments.js";
+import metricsRouter from "./src/routes/metrics.js";
 import { startBackgroundServices } from "./src/services/bootstrap.js";
 
 dotenv.config();
@@ -105,6 +106,7 @@ app.use("/uploads", express.static(path.resolve(process.cwd(), uploadsDir)));
 
 app.use("/api/applications", applicationsRouter);
 app.use("/api/payments", paymentsRouter);
+app.use("/api/metrics", metricsRouter);
 
 app.get("/health", (_, res) => res.json({ status: "ok" }));
 app.get("/", (req, res) => {

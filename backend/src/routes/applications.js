@@ -2,9 +2,10 @@ import { Router } from "express";
 import multer from "multer";
 import fs from "node:fs";
 import path from "path";
+import crypto from "node:crypto";
 
 import Application from "../models/Application.js";
-import { publishJob } from "../services/rabbitmq.js";
+// import { publishJob } from "../services/rabbitmq.js";
 import { sendWelcomeEmail } from "../services/email.js";
 import { handleResumeUpload } from "../jobs/handlers.js";
 
@@ -56,6 +57,38 @@ const requiredFields = [
   "placement_contact",
 ];
 
+const REGISTRATION_PREFIX = "VYN";
+const REGISTRATION_LENGTH = 12;
+const REGISTRATION_PHONE_DIGITS = 5;
+const REGISTRATION_RANDOM_LENGTH = REGISTRATION_LENGTH - REGISTRATION_PREFIX.length - REGISTRATION_PHONE_DIGITS;
+
+const buildRegistrationId = (phoneNumber) => {
+  const digits = String(phoneNumber || "").replace(/\D/g, "");
+  const phoneSegment = digits.slice(-REGISTRATION_PHONE_DIGITS).padStart(REGISTRATION_PHONE_DIGITS, "0");
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  let randomSegment = "";
+  for (let index = 0; index < REGISTRATION_RANDOM_LENGTH; index += 1) {
+    randomSegment += alphabet[crypto.randomInt(0, alphabet.length)];
+  }
+
+  return `${REGISTRATION_PREFIX}${phoneSegment}${randomSegment}`;
+};
+
+const generateUniqueRegistrationId = async (phoneNumber) => {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const registrationId = buildRegistrationId(phoneNumber);
+    const exists = await Application.exists({ registrationId });
+    if (!exists) {
+      return registrationId;
+    }
+  }
+
+  const error = new Error("Unable to allocate registration ID. Please try again.");
+  error.statusCode = 503;
+  throw error;
+};
+
 const isValidHttpUrl = (value) => {
   try {
     const parsed = new URL(value);
@@ -100,6 +133,8 @@ if (!consent) {
       : undefined;
 
     const parsedInternshipPrice = Number.parseInt(String(req.body.internship_price ?? ""), 10);
+    const preferredDomain = String(req.body.preferred_domain ?? "").trim();
+    const normalizedPreferredDomain = preferredDomain.toLowerCase();
 
     const document = {
       fullName: req.body.full_name.trim(),
@@ -108,15 +143,18 @@ if (!consent) {
       linkedinUrl: req.body.linkedin_url.trim(),
       collegeName: req.body.college_name.trim(),
       collegeLocation: req.body.college_location.trim(),
-      preferredDomain: req.body.preferred_domain.trim(),
+      preferredDomain,
       languages: req.body.languages.trim(),
       remoteComfort: req.body.remote_comfort.trim(),
       placementContact: req.body.placement_contact.trim(),
       selectedDuration: String(req.body.selected_duration ?? "").trim() || undefined,
       selectedAddons: String(req.body.selected_addons ?? "").trim() || undefined,
-      internshipPrice: Number.isFinite(parsedInternshipPrice) && parsedInternshipPrice > 0
-        ? parsedInternshipPrice
-        : undefined,
+      registrationId: await generateUniqueRegistrationId(req.body.phone),
+      internshipPrice: normalizedPreferredDomain === "test"
+        ? 1
+        : (Number.isFinite(parsedInternshipPrice) && parsedInternshipPrice > 0
+          ? parsedInternshipPrice
+          : undefined),
       resumePath,
       resumeUrl: resumeLink || undefined,
       consent: true,
@@ -130,21 +168,12 @@ if (!consent) {
     });
 
     if (req.file) {
-      try {
-        await publishJob("resume-upload", {
-          applicationId: String(application._id),
-          localResumePath: resumePath,
-          originalName: req.file.originalname,
-        });
-      } catch (queueError) {
-        // Keep submission successful even when RabbitMQ is unavailable.
-        console.warn("Queue unavailable, running resume upload inline", queueError?.message);
-        await handleResumeUpload({
-          applicationId: String(application._id),
-          localResumePath: resumePath,
-          originalName: req.file.originalname,
-        });
-      }
+      // Directly handle resume upload inline (no queue)
+      await handleResumeUpload({
+        applicationId: String(application._id),
+        localResumePath: resumePath,
+        originalName: req.file.originalname,
+      });
     }
 
     return res.status(201).json({
