@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /backend/
+Disallow: /scripts/
+Host: vyntyraconsultancyservices.in
+Sitemap: https://vyntyraconsultancyservices.in/sitemap.xml

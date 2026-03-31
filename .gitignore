@@ -1,0 +1,27 @@
+# Virtual environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+pyvenv.cfg
+
+# Logs and runtime files
+*.log
+*.pid
+
+# Node dependencies
+node_modules/
+backend/node_modules/
+
+# Environment files
+.env
+backend/.env
+
+# Local deployment/runtime state
+.wrangler/
+backend/uploads/
+
+# OS junk
+.DS_Store
