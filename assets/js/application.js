@@ -1,5 +1,5 @@
 /**
- * Vyntyra Internship Application System
+ * Vyntyra Training Program and Internship Application System
  * Frontend integration with Node.js backend API and Razorpay payment gateway
  */
 
@@ -583,22 +583,22 @@ function setupSiteChatbot() {
 
     if (/\b(contact|phone|email|support|help line|helpline)\b/.test(q)) {
       return {
-        text: "Support: support@vyntyraconsultancyservices.in, Internships: internships@vyntyraconsultancyservices.in, Phone: +91 93905 15106.",
-        speech: "Support email is support at vyntyraconsultancyservices dot in. Internship email is internships at vyntyraconsultancyservices dot in. Phone number is plus 91 93905 15106.",
+        text: "Support: support@vyntyraconsultancyservices.in, Training and Internships: internships@vyntyraconsultancyservices.in, Phone: +91 93905 15106.",
+        speech: "Support email is support at vyntyraconsultancyservices dot in. Training and internship email is internships at vyntyraconsultancyservices dot in. Phone number is plus 91 93905 15106.",
       };
     }
 
     if (/\b(journey|timeline|duration|weeks|phase)\b/.test(q)) {
       return {
-        text: "Internship journey is 13 weeks: Foundation (4 weeks), Implementation (6 weeks), and Career Launch (3 weeks). <a href='#journey'>View Journey</a>",
-        speech: "Internship journey is 13 weeks with foundation, implementation, and career launch phases.",
+        text: "Training and internship journey is 13 weeks: Foundation (4 weeks), Implementation (6 weeks), and Career Launch (3 weeks). <a href='#journey'>View Journey</a>",
+        speech: "Training and internship journey is 13 weeks with foundation, implementation, and career launch phases.",
       };
     }
 
     if (/\b(eligible|eligibility|who can apply|intake|batch)\b/.test(q)) {
       return {
-        text: "Eligibility targets pre-final and final year students from 2027 and 2028 graduating batches, with focus on Tier 2 and Tier 3 colleges.",
-        speech: "Eligibility targets pre-final and final year students from 2027 and 2028 graduating batches, with focus on tier 2 and tier 3 colleges.",
+        text: "Eligibility includes undergraduate and graduate students from 2024, 2025, and 2026 batches across B.Tech (CS and allied branches), BCA, BE, BBA, and MBA, with focus on Tier 2 and Tier 3 colleges.",
+        speech: "Eligibility includes undergraduate and graduate students from 2024, 2025, and 2026 batches across B Tech, B C A, B E, B B A, and M B A, with focus on tier 2 and tier 3 colleges.",
       };
     }
 
@@ -625,7 +625,7 @@ function setupSiteChatbot() {
     panel.setAttribute("aria-hidden", "false");
     launchBtn.setAttribute("aria-expanded", "true");
     if (!messagesEl.children.length) {
-      appendMessage("Hello, I am Vyntyra Assistant. Ask me anything about tracks, fees, deadlines, or application.", "bot");
+      appendMessage("Hello, I am Vyntyra Assistant. Ask me anything about training tracks, fees, deadlines, or application.", "bot");
     }
     input.focus();
   };
@@ -1260,8 +1260,8 @@ async function initiatePayment(gateway = "razorpay") {
       key: RAZORPAY_KEY,
       amount: orderData.amount, // Amount in paise
       currency: orderData.currency,
-      name: "Vyntyra Internship",
-      description: "Registration Fee - Summer Internship 2026",
+      name: "Vyntyra Summer Training Program and Internship",
+      description: "Registration Fee - Summer Training Program and Internship 2026",
       order_id: orderData.orderId,
       prefill: {
         name: formData.get("full_name"),
