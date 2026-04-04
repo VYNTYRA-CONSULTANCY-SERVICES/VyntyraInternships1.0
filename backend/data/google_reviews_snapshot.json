@@ -1,6 +1,6 @@
 {
   "source": "python-google-public-search",
-  "updatedAt": "2026-04-04T21:34:36.514319+00:00",
+  "updatedAt": "2026-04-04T21:39:49.135127+00:00",
   "places": [
     {
       "placeId": null,
@@ -37,12 +37,21 @@
       "rating": 4.0,
       "totalRatings": 1,
       "reviews": []
+    },
+    {
+      "placeId": null,
+      "name": "Vyntyra Consultancy Services Pvt. Ltd",
+      "mapUrl": "https://www.google.com/maps/place/Vyntyra+Consultancy+Services+Pvt.+Ltd",
+      "address": null,
+      "rating": 4.0,
+      "totalRatings": 1,
+      "reviews": []
     }
   ],
   "aggregate": {
     "averageRating": 4.0,
-    "totalRatings": 4,
-    "totalPlaces": 4
+    "totalRatings": 5,
+    "totalPlaces": 5
   },
   "reviews": [],
   "cached": false,
