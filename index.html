@@ -88,7 +88,7 @@
           <div class="hero-copy">
             <p class="eyebrow">Program Prospectus</p>
             <h1>Vyntyra Summer Training Program &amp; Internship 2026</h1>
-            <button type="button" class="cta primary">Apply Now</button>
+            <a class="cta primary" href="#apply">Apply Now</a>
             <p class="theme">
               Theme: Bridging the Gap – Empowering the Next Generation of Tech Leaders
             </p>
@@ -1031,6 +1031,38 @@
               </div>
             </div>
           </section>
+
+          <section id="registration-success-modal" class="resume-help-modal" aria-hidden="true" aria-label="Registration success details">
+            <div class="resume-help-backdrop" data-close-registration-success></div>
+            <div class="resume-help-dialog" role="dialog" aria-modal="true" aria-labelledby="registration-success-title" tabindex="-1">
+              <div class="resume-help-header">
+                <div>
+                  <p class="eyebrow">Registration Confirmed</p>
+                  <h3 id="registration-success-title">Application Submitted Successfully</h3>
+                </div>
+                <button type="button" class="resume-help-close" data-close-registration-success aria-label="Close registration details">&times;</button>
+              </div>
+
+              <div class="resume-help-content">
+                <article class="resume-help-card">
+                  <h4 id="registration-success-greeting">Hi Applicant, your application has been submitted successfully.</h4>
+                  <p>Your internship registration is now confirmed. Save these details for future communication.</p>
+                </article>
+
+                <article class="resume-help-card">
+                  <h4>Registration Details</h4>
+                  <ul>
+                    <li><strong>Registration ID:</strong> <span id="registration-success-id">N/A</span></li>
+                    <li><strong>Payment Gateway:</strong> <span id="registration-success-payment-gateway">N/A</span></li>
+                    <li><strong>Payment Amount:</strong> <span id="registration-success-payment-amount">N/A</span></li>
+                    <li><strong>Transaction ID:</strong> <span id="registration-success-transaction-id">N/A</span></li>
+                    <li><strong>Payment Status:</strong> <span id="registration-success-payment-status">N/A</span></li>
+                    <li><strong>Payment Time:</strong> <span id="registration-success-payment-time">N/A</span></li>
+                  </ul>
+                </article>
+              </div>
+            </div>
+          </section>
         </section>
       </main>
 
@@ -1336,219 +1368,334 @@
         </div>
       </section>
 
-      <section id="reputation" class="reputation-section" aria-labelledby="reputation-title">
+      <section id="reviews-profiles" class="reviews-profiles-section" aria-labelledby="reviews-profiles-title">
         <style>
-          #reputation {
-            margin: 2rem 0 0;
+          #reviews-profiles {
+            margin: 2.25rem 0 0;
           }
 
-          #reputation .reputation-shell {
-            padding: 2rem;
+          #reviews-profiles .reviews-shell {
             border-radius: 2rem;
             border: 1px solid rgba(255, 255, 255, 0.1);
             background:
-              radial-gradient(circle at 10% 0%, rgba(123, 225, 255, 0.14), transparent 46%),
-              radial-gradient(circle at 88% 92%, rgba(255, 201, 75, 0.12), transparent 44%),
-              rgba(7, 12, 26, 0.86);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 22px 58px rgba(0, 0, 0, 0.32);
+              radial-gradient(circle at 12% 0%, rgba(123, 225, 255, 0.15), transparent 42%),
+              radial-gradient(circle at 100% 0%, rgba(255, 201, 75, 0.12), transparent 44%),
+              rgba(7, 12, 26, 0.88);
+            backdrop-filter: blur(16px);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 20px 52px rgba(0, 0, 0, 0.3);
+            padding: 1.5rem;
           }
 
-          #reputation .reputation-header {
-            display: grid;
-            gap: 0.8rem;
-            margin-bottom: 1.2rem;
-          }
-
-          #reputation .reputation-header h2 {
-            margin: 0;
-            font-size: clamp(1.7rem, 3.8vw, 2.4rem);
-            line-height: 1.12;
-            background: linear-gradient(135deg, #ffffff 0%, #7be1ff 52%, #ffc94b 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-          }
-
-          #reputation .reputation-header p {
-            margin: 0;
-            color: rgba(247, 249, 255, 0.75);
-            line-height: 1.65;
-          }
-
-          #reputation .reputation-summary {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 0.8rem;
+          #reviews-profiles .reviews-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
             margin-bottom: 1rem;
           }
 
-          #reputation .summary-chip {
-            padding: 0.8rem 0.95rem;
-            border-radius: 1rem;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.04);
+          #reviews-profiles .reviews-head h2 {
+            margin: 0.3rem 0 0.35rem;
+            font-size: clamp(1.5rem, 3.4vw, 2.25rem);
+            line-height: 1.15;
           }
 
-          #reputation .summary-label {
+          #reviews-profiles .reviews-head p {
+            margin: 0;
+            color: rgba(247, 249, 255, 0.72);
+            max-width: 760px;
+          }
+
+          #reviews-profiles .google-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.7rem;
+            margin: 1rem 0 1.15rem;
+          }
+
+          #reviews-profiles .stat-card {
+            border-radius: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.04);
+            padding: 0.8rem 0.9rem;
+          }
+
+          #reviews-profiles .stat-label {
             display: block;
-            font-size: 0.72rem;
+            font-size: 0.73rem;
             letter-spacing: 0.08em;
             text-transform: uppercase;
             color: rgba(247, 249, 255, 0.58);
+            margin-bottom: 0.35rem;
           }
 
-          #reputation .summary-value {
-            display: block;
-            margin-top: 0.35rem;
-            font-size: 1.2rem;
+          #reviews-profiles .stat-value {
             font-weight: 700;
             color: #fff;
+            font-size: 1.05rem;
           }
 
-          #reputation .reputation-layout {
+          #reviews-profiles .reviews-and-links {
             display: grid;
-            grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
+            grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
             gap: 1rem;
-            align-items: start;
           }
 
-          #reputation .google-listings,
-          #reputation .google-reviews,
-          #reputation .profiles-directory {
-            padding: 1rem;
-            border-radius: 1.1rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.03);
-          }
-
-          #reputation h3 {
-            margin: 0 0 0.75rem;
-            font-size: 1rem;
-            color: #fff;
-          }
-
-          #reputation .listing-grid,
-          #reputation .review-grid,
-          #reputation .profiles-grid {
+          #reviews-profiles .google-review-list {
             display: grid;
-            gap: 0.65rem;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 0.7rem;
           }
 
-          #reputation .listing-card,
-          #reputation .review-card,
-          #reputation .profile-card {
-            padding: 0.85rem;
-            border-radius: 0.95rem;
+          #reviews-profiles .review-item {
             border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.04);
+            background: rgba(255, 255, 255, 0.045);
+            border-radius: 0.95rem;
+            padding: 0.9rem;
           }
 
-          #reputation .listing-card strong,
-          #reputation .review-card strong,
-          #reputation .profile-card strong {
+          #reviews-profiles .review-item .reviewer {
             color: #fff;
+            font-weight: 600;
+            font-size: 0.92rem;
+            margin-bottom: 0.2rem;
           }
 
-          #reputation .listing-meta,
-          #reputation .review-meta,
-          #reputation .profile-note {
-            margin-top: 0.35rem;
-            color: rgba(247, 249, 255, 0.7);
+          #reviews-profiles .review-item .review-meta {
+            color: rgba(247, 249, 255, 0.66);
+            font-size: 0.78rem;
+            margin-bottom: 0.4rem;
+          }
+
+          #reviews-profiles .review-item .review-text {
+            color: rgba(247, 249, 255, 0.78);
+            font-size: 0.86rem;
+            line-height: 1.6;
+            margin: 0;
+          }
+
+          #reviews-profiles .profile-panel {
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 1rem;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 0.95rem;
+          }
+
+          #reviews-profiles .profile-panel h3 {
+            margin: 0 0 0.4rem;
+            color: #fff;
+            font-size: 1rem;
+          }
+
+          #reviews-profiles .profile-panel p {
+            margin: 0;
+            color: rgba(247, 249, 255, 0.72);
             font-size: 0.9rem;
             line-height: 1.55;
           }
 
-          #reputation .mini-link {
-            margin-top: 0.55rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.42rem 0.7rem;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            background: rgba(255, 255, 255, 0.05);
-            color: #fff;
-            font-size: 0.8rem;
-            text-decoration: none;
+          #reviews-profiles .profile-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.52rem;
+            margin-top: 0.75rem;
           }
 
-          #reputation .mini-link:hover {
+          #reviews-profiles .profile-links a {
+            text-decoration: none;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            padding: 0.46rem 0.72rem;
+            font-size: 0.8rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+          }
+
+          #reviews-profiles .profile-links a:hover {
             border-color: rgba(255, 201, 75, 0.5);
           }
 
-          #reputation .review-text {
-            margin-top: 0.4rem;
-            color: rgba(247, 249, 255, 0.74);
-            line-height: 1.6;
-            font-size: 0.92rem;
-          }
-
-          #reputation .source-note {
+          #reviews-profiles .reviews-disclaimer {
             margin-top: 0.8rem;
+            font-size: 0.82rem;
             color: rgba(247, 249, 255, 0.62);
-            font-size: 0.85rem;
           }
 
-          #reputation .is-muted {
-            color: rgba(247, 249, 255, 0.58);
-            font-style: italic;
-          }
-
-          @media (max-width: 980px) {
-            #reputation .reputation-layout {
+          @media (max-width: 960px) {
+            #reviews-profiles .google-stats {
               grid-template-columns: 1fr;
             }
-          }
 
-          @media (max-width: 640px) {
-            #reputation .reputation-shell {
-              padding: 1.3rem;
-              border-radius: 1.4rem;
+            #reviews-profiles .reviews-and-links {
+              grid-template-columns: 1fr;
             }
           }
         </style>
         <div class="canvas">
-          <div class="reputation-shell">
-            <div class="reputation-header">
-              <p class="eyebrow">Reputation &amp; Presence</p>
-              <h2 id="reputation-title">Live Google reviews and profile directory</h2>
-              <p>This block fetches Google review data from the source API and refreshes automatically. You can also cross-check company presence on major hiring and employer platforms.</p>
-            </div>
-
-            <div class="reputation-summary">
-              <div class="summary-chip">
-                <span class="summary-label">Average Google Rating</span>
-                <span class="summary-value" id="google-rating-summary">Loading...</span>
-              </div>
-              <div class="summary-chip">
-                <span class="summary-label">Total Ratings</span>
-                <span class="summary-value" id="google-rating-count">Loading...</span>
-              </div>
-              <div class="summary-chip">
-                <span class="summary-label">Last Synced</span>
-                <span class="summary-value" id="google-sync-at">Loading...</span>
-              </div>
-            </div>
-
-            <div class="reputation-layout">
+          <div class="reviews-shell">
+            <div class="reviews-head">
               <div>
-                <div class="google-listings">
-                  <h3>Google Business Listings</h3>
-                  <div class="listing-grid" id="google-business-list"></div>
-                </div>
-                <div class="google-reviews" style="margin-top:0.8rem;">
-                  <h3>Latest Google Reviews</h3>
-                  <div class="review-grid" id="google-review-list"></div>
-                  <p class="source-note" id="google-review-source-note"></p>
+                <p class="eyebrow">Public Reputation</p>
+                <h2 id="reviews-profiles-title">Google Reviews and Public Hiring Profiles</h2>
+                <p>We prioritize Google reviews as the primary trust signal and also provide direct links to major public profiles for student verification.</p>
+              </div>
+              <a href="https://www.google.com/maps/place/Vyntyra+Consultancy+Services" target="_blank" rel="noreferrer" class="cta">Open Google Reviews</a>
+            </div>
+
+            <div class="google-stats" aria-live="polite">
+              <div class="stat-card">
+                <span class="stat-label">Google Rating</span>
+                <span class="stat-value" id="google-rating-value">Loading...</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Total Ratings</span>
+                <span class="stat-value" id="google-total-ratings">Loading...</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-label">Last Synced</span>
+                <span class="stat-value" id="google-last-updated">Checking...</span>
+              </div>
+            </div>
+
+            <div class="reviews-and-links">
+              <div>
+                <div class="google-review-list" id="google-review-list">
+                  <article class="review-item">
+                    <div class="reviewer">Loading latest Google reviews...</div>
+                    <div class="review-meta">Please wait</div>
+                    <p class="review-text">We are connecting to the Google review source.</p>
+                  </article>
                 </div>
               </div>
-              <aside class="profiles-directory">
-                <h3>Profile Directory</h3>
-                <div class="profiles-grid" id="profile-directory-list"></div>
+
+              <aside class="profile-panel">
+                <h3>Company Profile Links</h3>
+                <p>Search and verify Vyntyra across trusted platforms. Use both name variants while checking public listings.</p>
+                <div class="profile-links">
+                  <a href="https://www.google.com/maps/place/Vyntyra+Consultancy+Services" target="_blank" rel="noreferrer">Google Maps</a>
+                  <a href="https://www.google.com/search?q=Vyntyra+Consultancy+Services+reviews" target="_blank" rel="noreferrer">Google Reviews Search</a>
+                  <a href="https://www.google.com/search?q=Vyntyra+Consultancy+Services+Pvt+Ltd" target="_blank" rel="noreferrer">Google Name Variant</a>
+                  <a href="https://www.google.com/search?q=Vyntyra+Consultancy+Services+Glassdoor" target="_blank" rel="noreferrer">Glassdoor</a>
+                  <a href="https://www.google.com/search?q=Vyntyra+Consultancy+Services+Internshala" target="_blank" rel="noreferrer">Internshala</a>
+                  <a href="https://www.google.com/search?q=Vyntyra+Consultancy+Services+Indeed" target="_blank" rel="noreferrer">Indeed</a>
+                  <a href="https://www.google.com/search?q=Vyntyra+Consultancy+Services+AmbitionBox" target="_blank" rel="noreferrer">AmbitionBox</a>
+                  <a href="https://www.google.com/search?q=Vyntyra+Consultancy+Services+Naukri" target="_blank" rel="noreferrer">Naukri</a>
+                  <a href="https://www.linkedin.com/company/vyntyra-consultancy-services" target="_blank" rel="noreferrer">LinkedIn</a>
+                </div>
+                <p class="reviews-disclaimer">Google review cards below are fetched from the backend Google Places source and refreshed automatically when API credentials are configured.</p>
               </aside>
             </div>
           </div>
         </div>
+        <script>
+          (() => {
+            const root = document.getElementById("reviews-profiles");
+            if (!root) return;
+
+            const ratingEl = document.getElementById("google-rating-value");
+            const totalEl = document.getElementById("google-total-ratings");
+            const updatedEl = document.getElementById("google-last-updated");
+            const listEl = document.getElementById("google-review-list");
+            const endpointCandidates = [
+              `${window.location.origin}/api/metrics/reviews/google`,
+              "https://vyntyrainternships-backend.onrender.com/api/metrics/reviews/google",
+            ];
+
+            const escapeHtml = (value) => String(value || "")
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/\"/g, "&quot;")
+              .replace(/'/g, "&#39;");
+
+            const renderFallback = (message) => {
+              if (ratingEl) ratingEl.textContent = "See Google";
+              if (totalEl) totalEl.textContent = "Open profile";
+              if (updatedEl) updatedEl.textContent = "Unavailable";
+              if (listEl) {
+                listEl.innerHTML = `<article class="review-item"><div class="reviewer">Live sync unavailable right now</div><div class="review-meta">Manual verification recommended</div><p class="review-text">${escapeHtml(message || "Please open Google Reviews using the links in this section.")}</p></article>`;
+              }
+            };
+
+            const renderData = (payload) => {
+              const aggregate = payload?.aggregate || {};
+              const average = Number(aggregate.averageRating || 0);
+              const totalRatings = Number(aggregate.totalRatings || 0);
+              const updatedAt = payload?.updatedAt ? new Date(payload.updatedAt) : null;
+
+              if (ratingEl) ratingEl.textContent = average > 0 ? `${average.toFixed(1)} / 5` : "See Google";
+              if (totalEl) totalEl.textContent = totalRatings > 0 ? totalRatings.toLocaleString("en-IN") : "See Google";
+              if (updatedEl) updatedEl.textContent = updatedAt && !Number.isNaN(updatedAt.getTime())
+                ? updatedAt.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+                : "Just now";
+
+              const reviews = Array.isArray(payload?.reviews) ? payload.reviews : [];
+              const places = Array.isArray(payload?.places) ? payload.places : [];
+              if (!listEl) return;
+
+              if (!reviews.length) {
+                if (places.length) {
+                  listEl.innerHTML = places.map((place) => {
+                    const placeName = escapeHtml(place.name || "Vyntyra");
+                    const placeRating = Number(place.rating || 0);
+                    const placeCount = Number(place.totalRatings || 0);
+                    const ratingLabel = placeRating > 0 ? `${placeRating.toFixed(1)} / 5` : "Rating unavailable";
+                    const countLabel = placeCount > 0 ? `${placeCount.toLocaleString("en-IN")} ratings` : "Count unavailable";
+                    return `<article class="review-item"><div class="reviewer">${placeName}</div><div class="review-meta">${ratingLabel} • ${countLabel}</div><p class="review-text">Public Google extraction currently exposes aggregate rating/count for this place. Open Google profile links for full review text feed.</p></article>`;
+                  }).join("");
+                } else {
+                  listEl.innerHTML = '<article class="review-item"><div class="reviewer">No recent Google review text found</div><div class="review-meta">Open Google profile for full review feed</div><p class="review-text">Latest ratings are still visible in Google, even if text reviews are limited.</p></article>';
+                }
+                return;
+              }
+
+              listEl.innerHTML = reviews.map((review) => {
+                const author = escapeHtml(review.authorName || "Google User");
+                const stars = Number(review.rating || 0);
+                const starLabel = stars > 0 ? `${stars.toFixed(1)} star` : "Google review";
+                const relative = escapeHtml(review.relativeTimeDescription || "recent");
+                const text = escapeHtml(review.text || "");
+                const placeName = escapeHtml(review.placeName || "Vyntyra");
+                return `<article class="review-item"><div class="reviewer">${author}</div><div class="review-meta">${starLabel} • ${relative} • ${placeName}</div><p class="review-text">${text}</p></article>`;
+              }).join("");
+            };
+
+            const fetchFirstAvailablePayload = async () => {
+              for (const endpoint of endpointCandidates) {
+                try {
+                  const response = await fetch(endpoint, {
+                    method: "GET",
+                    headers: { Accept: "application/json" },
+                    cache: "no-store",
+                  });
+                  if (!response.ok) {
+                    continue;
+                  }
+                  return await response.json();
+                } catch (error) {
+                  // Try next endpoint candidate.
+                }
+              }
+              throw new Error("No review endpoint available");
+            };
+
+            const syncGoogleReviews = async () => {
+              try {
+                const payload = await fetchFirstAvailablePayload();
+                renderData(payload);
+              } catch (error) {
+                renderFallback("Unable to reach review endpoint. Open Google links for latest direct verification.");
+              }
+            };
+
+            syncGoogleReviews();
+            window.setInterval(syncGoogleReviews, 10 * 60 * 1000);
+          })();
+        </script>
       </section>
 
       <footer class="site-footer">

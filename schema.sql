@@ -5,6 +5,7 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS applications (
   id TEXT PRIMARY KEY,
+  registration_id TEXT UNIQUE,
   full_name TEXT NOT NULL,
   phone TEXT NOT NULL,
   email TEXT NOT NULL,
@@ -97,6 +98,7 @@ CREATE TABLE IF NOT EXISTS invoices (
 );
 
 CREATE INDEX IF NOT EXISTS idx_applications_email ON applications(email);
+CREATE INDEX IF NOT EXISTS idx_applications_registration_id ON applications(registration_id);
 CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status);
 CREATE INDEX IF NOT EXISTS idx_applications_created_at ON applications(created_at DESC);
 

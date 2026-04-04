@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "sync:google-reviews:py": "python ../scripts/sync_google_reviews.py"
   },
   "engines": {
     "node": "20.x"
