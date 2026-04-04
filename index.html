@@ -96,10 +96,27 @@
               MSME Registered · UDYAM-AP-09-0051886 · Date of Incorporation: 07/09/2024 · MSME-DFO: Visakhapatnam
             </p>
             <p>
-              Vyntyra Consultancy Services is scaling its impact. After a pilot with 25 interns, the 2026
-              edition will welcome 300-400 engineering students and 20 MBA students into a structured
-              training-to-internship runway. We focus on Tier 2 and Tier 3 colleges, turning regionally rooted talent
-              into industry-ready leaders with guided learning, delivery discipline, and mentorship.
+              Vyntyra Consultancy Services is entering its next growth phase. After a successful <strong>25-intern pilot</strong>,
+              the 2026 cohort is designed for <strong>400 engineering students</strong> and <strong>50+ MBA students</strong> through a
+              structured <strong>training-to-internship pathway</strong>. Our core mission remains clear: empower <strong>Tier 2 and Tier 3
+              college talent</strong> to become industry-ready professionals through guided learning, disciplined execution,
+              and continuous mentorship.
+            </p>
+            <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem;">
+              <span style="display:inline-flex;align-items:center;padding:.35rem .65rem;border-radius:999px;border:1px solid rgba(123,225,255,.34);background:rgba(123,225,255,.1);font-size:.74rem;color:rgba(247,249,255,.92);">Pilot: 25 Interns</span>
+              <span style="display:inline-flex;align-items:center;padding:.35rem .65rem;border-radius:999px;border:1px solid rgba(255,201,75,.34);background:rgba(255,201,75,.1);font-size:.74rem;color:rgba(247,249,255,.92);">2026 Intake: 400 Engineers</span>
+              <span style="display:inline-flex;align-items:center;padding:.35rem .65rem;border-radius:999px;border:1px solid rgba(255,201,75,.34);background:rgba(255,201,75,.1);font-size:.74rem;color:rgba(247,249,255,.92);">MBA Cohort: 50+ Students</span>
+              <span style="display:inline-flex;align-items:center;padding:.35rem .65rem;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);font-size:.74rem;color:rgba(247,249,255,.92);">Focus: Tier 2 &amp; Tier 3 Colleges</span>
+            </div>
+            <div style="margin-top:.7rem;padding:.8rem .95rem;border-radius:14px;border:1px solid rgba(255,107,127,.58);background:linear-gradient(135deg,rgba(255,107,127,.26),rgba(255,201,75,.18));box-shadow:0 10px 28px rgba(255,107,127,.24), inset 0 0 0 1px rgba(255,255,255,.12);">
+              <p style="margin:0;font-size:.86rem;line-height:1.55;font-weight:700;letter-spacing:.01em;color:#fff;">
+                Learn from scratch and become industry-ready. If you do not achieve the expected learning outcomes, we will refund your registration fee.
+              </p>
+            </div>
+            <p style="margin-top:.75rem;padding:.75rem .9rem;border-radius:12px;border:1px solid rgba(123,225,255,.26);background:rgba(123,225,255,.08);font-size:.82rem;line-height:1.7;color:rgba(247,249,255,.9);">
+              <strong>Eligible branches for UNDER GRADUATION and POST GRADUATION:</strong><br />
+              B.Tech (CS), BCA, BE, BBA, MBA<br />
+              <strong>Eligible batches:</strong> 2024, 2025 &amp; 2026
             </p>
             <div class="hero-stats">
               <div>
@@ -774,7 +791,7 @@
             <p class="eyebrow">Application Form</p>
             <h2>Share your story and join the cohort</h2>
           </div>
-          <form class="apply-form" method="post" enctype="multipart/form-data">
+          <form id="application-form" class="apply-form" method="post" enctype="multipart/form-data">
             <div class="form-grid">
               <label>
                 Full Name
@@ -1881,6 +1898,19 @@
     <script src="/assets/js/application.js" defer></script>
     <script>
       (adsbygoogle = window.adsbygoogle || []).push({});
+    </script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const formTarget = document.querySelector("form.apply-form");
+        if (!formTarget) return;
+
+        document.querySelectorAll('a[href="#apply"], a[href="#application-form"]').forEach((link) => {
+          link.addEventListener("click", (event) => {
+            event.preventDefault();
+            formTarget.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        });
+      });
     </script>
       <script>
       const navToggle = document.querySelector('.nav-toggle');
