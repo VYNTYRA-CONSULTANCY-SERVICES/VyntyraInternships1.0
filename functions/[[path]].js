@@ -146,6 +146,120 @@ function isValidHttpUrl(value) {
   }
 }
 
+function isLegacySchemaError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes("no such column") || message.includes("has no column named");
+}
+
+async function insertApplicationRecord(c, row) {
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO applications (
+        id, full_name, phone, email, linkedin_url, college_name, college_location,
+        preferred_domain, languages, remote_comfort, placement_contact,
+        resume_key, resume_url, consent, status,
+        duration_months, selected_addons, internship_price,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        row.applicationId,
+        row.fullName,
+        row.phone,
+        row.email,
+        row.linkedinUrl,
+        row.collegeName,
+        row.collegeLocation,
+        row.preferredDomain,
+        row.languages,
+        row.remoteComfort,
+        row.placementContact,
+        row.resumeKey,
+        row.resumeUrl,
+        row.consent,
+        row.status,
+        row.selectedDuration,
+        row.selectedAddons,
+        row.amount,
+        row.createdAt,
+        row.updatedAt
+      )
+      .run();
+  } catch (error) {
+    if (!isLegacySchemaError(error)) {
+      throw error;
+    }
+
+    // Backward-compatible insert for older D1 schemas without pricing add-on columns.
+    await c.env.DB.prepare(
+      `INSERT INTO applications (
+        id, full_name, phone, email, linkedin_url, college_name, college_location,
+        preferred_domain, languages, remote_comfort, placement_contact,
+        resume_key, resume_url, consent, status,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        row.applicationId,
+        row.fullName,
+        row.phone,
+        row.email,
+        row.linkedinUrl,
+        row.collegeName,
+        row.collegeLocation,
+        row.preferredDomain,
+        row.languages,
+        row.remoteComfort,
+        row.placementContact,
+        row.resumeKey,
+        row.resumeUrl,
+        row.consent,
+        row.status,
+        row.createdAt,
+        row.updatedAt
+      )
+      .run();
+  }
+}
+
+async function upsertRazorpayPaymentRecord(c, row) {
+  try {
+    await c.env.DB.prepare(
+      `INSERT INTO payments (
+        id, application_id, razorpay_order_id, amount, currency, gateway, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'razorpay', 'pending', ?, ?)
+      ON CONFLICT(application_id) DO UPDATE SET
+        razorpay_order_id = excluded.razorpay_order_id,
+        amount = excluded.amount,
+        currency = excluded.currency,
+        gateway = excluded.gateway,
+        status = 'pending',
+        updated_at = excluded.updated_at`
+    )
+      .bind(row.paymentId, row.applicationId, row.razorpayOrderId, row.amountInRupees, "INR", row.createdAt, row.updatedAt)
+      .run();
+  } catch (error) {
+    if (!isLegacySchemaError(error)) {
+      throw error;
+    }
+
+    // Backward-compatible upsert for older D1 schemas without gateway column.
+    await c.env.DB.prepare(
+      `INSERT INTO payments (
+        id, application_id, razorpay_order_id, amount, currency, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+      ON CONFLICT(application_id) DO UPDATE SET
+        razorpay_order_id = excluded.razorpay_order_id,
+        amount = excluded.amount,
+        currency = excluded.currency,
+        status = 'pending',
+        updated_at = excluded.updated_at`
+    )
+      .bind(row.paymentId, row.applicationId, row.razorpayOrderId, row.amountInRupees, "INR", row.createdAt, row.updatedAt)
+      .run();
+  }
+}
+
 app.post("/api/applications", async (c) => {
   try {
     const form = await c.req.formData();
@@ -177,6 +291,9 @@ app.post("/api/applications", async (c) => {
 
     let resumeKey = null;
     let uploadedResumeUrl = null;
+    const applicationId = uuid();
+    const amount = Number.parseInt(String(form.get("internship_price") || c.env.APPLICATION_FEE_INR || "499"), 10);
+    const now = nowIso();
 
     if (hasFile) {
       const ext = (resumeFile.name.split(".").pop() || "").toLowerCase();
@@ -188,9 +305,8 @@ app.post("/api/applications", async (c) => {
         return c.json({ message: "Resume exceeds 5MB upload limit." }, 400);
       }
 
-      const appIdForKey = uuid();
       const safeName = resumeFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-      resumeKey = `applications/${appIdForKey}/${Date.now()}-${safeName}`;
+      resumeKey = `applications/${applicationId}/${Date.now()}-${safeName}`;
 
       await c.env.RESUMES.put(resumeKey, resumeFile.stream(), {
         httpMetadata: {
@@ -203,87 +319,30 @@ app.post("/api/applications", async (c) => {
         uploadedResumeUrl = `${publicBase}/${resumeKey}`;
       }
 
-      const applicationId = appIdForKey;
-      const amount = Number.parseInt(String(form.get("internship_price") || c.env.APPLICATION_FEE_INR || "499"), 10);
-
-      await c.env.DB.prepare(
-        `INSERT INTO applications (
-          id, full_name, phone, email, linkedin_url, college_name, college_location,
-          preferred_domain, languages, remote_comfort, placement_contact,
-          resume_key, resume_url, consent, status,
-          duration_months, selected_addons, internship_price,
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-        .bind(
-          applicationId,
-          String(form.get("full_name")).trim(),
-          String(form.get("phone")).trim(),
-          String(form.get("email")).trim().toLowerCase(),
-          String(form.get("linkedin_url")).trim(),
-          String(form.get("college_name")).trim(),
-          String(form.get("college_location")).trim(),
-          String(form.get("preferred_domain")).trim(),
-          String(form.get("languages")).trim(),
-          String(form.get("remote_comfort")).trim(),
-          String(form.get("placement_contact")).trim(),
-          resumeKey,
-          uploadedResumeUrl || resumeLink || null,
-          1,
-          "PENDING_PAYMENT",
-          String(form.get("selected_duration") || "").trim() || null,
-          String(form.get("selected_addons") || "").trim() || null,
-          Number.isFinite(amount) && amount > 0 ? amount : 499,
-          nowIso(),
-          nowIso()
-        )
-        .run();
-
-      return c.json(
-        {
-          message: "Application submitted. Please complete payment to secure your slot.",
-          applicationId,
-          status: "PENDING_PAYMENT",
-        },
-        201
-      );
     }
 
-    const applicationId = uuid();
-    const amount = Number.parseInt(String(form.get("internship_price") || c.env.APPLICATION_FEE_INR || "499"), 10);
-
-    await c.env.DB.prepare(
-      `INSERT INTO applications (
-        id, full_name, phone, email, linkedin_url, college_name, college_location,
-        preferred_domain, languages, remote_comfort, placement_contact,
-        resume_key, resume_url, consent, status,
-        duration_months, selected_addons, internship_price,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        applicationId,
-        String(form.get("full_name")).trim(),
-        String(form.get("phone")).trim(),
-        String(form.get("email")).trim().toLowerCase(),
-        String(form.get("linkedin_url")).trim(),
-        String(form.get("college_name")).trim(),
-        String(form.get("college_location")).trim(),
-        String(form.get("preferred_domain")).trim(),
-        String(form.get("languages")).trim(),
-        String(form.get("remote_comfort")).trim(),
-        String(form.get("placement_contact")).trim(),
-        null,
-        resumeLink,
-        1,
-        "PENDING_PAYMENT",
-        String(form.get("selected_duration") || "").trim() || null,
-        String(form.get("selected_addons") || "").trim() || null,
-        Number.isFinite(amount) && amount > 0 ? amount : 499,
-        nowIso(),
-        nowIso()
-      )
-      .run();
+    await insertApplicationRecord(c, {
+      applicationId,
+      fullName: String(form.get("full_name")).trim(),
+      phone: String(form.get("phone")).trim(),
+      email: String(form.get("email")).trim().toLowerCase(),
+      linkedinUrl: String(form.get("linkedin_url")).trim(),
+      collegeName: String(form.get("college_name")).trim(),
+      collegeLocation: String(form.get("college_location")).trim(),
+      preferredDomain: String(form.get("preferred_domain")).trim(),
+      languages: String(form.get("languages")).trim(),
+      remoteComfort: String(form.get("remote_comfort")).trim(),
+      placementContact: String(form.get("placement_contact")).trim(),
+      resumeKey,
+      resumeUrl: uploadedResumeUrl || resumeLink || null,
+      consent: 1,
+      status: "PENDING_PAYMENT",
+      selectedDuration: String(form.get("selected_duration") || "").trim() || null,
+      selectedAddons: String(form.get("selected_addons") || "").trim() || null,
+      amount: Number.isFinite(amount) && amount > 0 ? amount : 499,
+      createdAt: now,
+      updatedAt: now,
+    });
 
     return c.json(
       {
@@ -389,20 +448,15 @@ app.post("/api/payments/create-order", async (c) => {
     }
 
     const paymentId = uuid();
-    await c.env.DB.prepare(
-      `INSERT INTO payments (
-        id, application_id, razorpay_order_id, amount, currency, gateway, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 'razorpay', 'pending', ?, ?)
-      ON CONFLICT(application_id) DO UPDATE SET
-        razorpay_order_id = excluded.razorpay_order_id,
-        amount = excluded.amount,
-        currency = excluded.currency,
-        gateway = excluded.gateway,
-        status = 'pending',
-        updated_at = excluded.updated_at`
-    )
-      .bind(paymentId, applicationId, order.id, amountInRupees, "INR", nowIso(), nowIso())
-      .run();
+    const now = nowIso();
+    await upsertRazorpayPaymentRecord(c, {
+      paymentId,
+      applicationId,
+      razorpayOrderId: order.id,
+      amountInRupees,
+      createdAt: now,
+      updatedAt: now,
+    });
 
     return c.json(
       {
