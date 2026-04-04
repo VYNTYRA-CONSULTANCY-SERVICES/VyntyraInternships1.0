@@ -1,5 +1,5 @@
 /**
- * Vyntyra Training Program and Internship Application System
+ * Vyntyra Internship Application System
  * Frontend integration with Node.js backend API and Razorpay payment gateway
  */
 
@@ -23,10 +23,9 @@ const RAZORPAY_KEY = "rzp_live_SVAKT9bXZhJT85";
 const PAYMENT_PENDING_APP_KEY = "vyntyra_pending_application_id";
 const RAZORPAY_SDK_ID = "razorpay-checkout-sdk";
 const CORE_FIXED_PRICE = 199;
-const TEST_DOMAIN = "Test";
-const TEST_FIXED_PRICE = 1;
 const VISITOR_COUNT_REFRESH_MS = 20000;
 const VISITOR_TIMESTAMP_REFRESH_MS = 1000;
+const REPUTATION_REFRESH_MS = 10 * 60 * 1000;
 
 // Fee amount in INR
 const APPLICATION_FEE = 499;
@@ -358,7 +357,18 @@ async function updateVisitorCountTotal() {
 
 async function registerVisitorHit() {
   try {
-    const response = await apiFetch("/metrics/visitors/hit", { method: "POST" });
+    const currentUrl = new URL(window.location.href);
+    const utmSource = currentUrl.searchParams.get("utm_source") || currentUrl.searchParams.get("source") || "";
+    const response = await apiFetch("/metrics/visitors/hit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userAgent: navigator.userAgent,
+        referrer: document.referrer || "",
+        landingUrl: window.location.href,
+        utmSource,
+      }),
+    });
     if (!response.ok) {
       return;
     }
@@ -393,6 +403,194 @@ function scheduleAfterPaint(callback) {
     return;
   }
   window.setTimeout(callback, 0);
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatCompactNumber(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return "0";
+  }
+  return Math.round(numeric).toLocaleString("en-IN");
+}
+
+function buildStars(rating) {
+  const rounded = Math.max(0, Math.min(5, Math.round(Number(rating || 0))));
+  return `${"★".repeat(rounded)}${"☆".repeat(5 - rounded)}`;
+}
+
+function renderBusinessListings(container, businesses) {
+  if (!container) {
+    return;
+  }
+
+  if (!Array.isArray(businesses) || !businesses.length) {
+    container.innerHTML = '<p class="is-muted">Google listing details are not available yet.</p>';
+    return;
+  }
+
+  container.innerHTML = businesses.map((business) => {
+    const safeName = escapeHtml(business.name || "Google Listing");
+    const rating = Number(business.rating || 0);
+    const ratingsCount = formatCompactNumber(business.userRatingsTotal || 0);
+    const mapUrl = business.mapUrl ? escapeHtml(business.mapUrl) : null;
+    const website = business.website ? escapeHtml(business.website) : null;
+    const address = business.address ? escapeHtml(business.address) : "Address not listed";
+
+    return `
+      <article class="listing-card">
+        <strong>${safeName}</strong>
+        <p class="listing-meta">${buildStars(rating)} ${rating ? rating.toFixed(1) : "0.0"} (${ratingsCount} ratings)</p>
+        <p class="listing-meta">${address}</p>
+        ${mapUrl ? `<a class="mini-link" href="${mapUrl}" target="_blank" rel="noreferrer">Open on Google Maps</a>` : ""}
+        ${website ? `<a class="mini-link" href="${website}" target="_blank" rel="noreferrer" style="margin-left:0.4rem;">Website</a>` : ""}
+      </article>
+    `;
+  }).join("");
+}
+
+function renderGoogleReviews(container, businesses) {
+  if (!container) {
+    return;
+  }
+
+  const allReviews = Array.isArray(businesses)
+    ? businesses.flatMap((business) => {
+      const reviews = Array.isArray(business.reviews) ? business.reviews : [];
+      return reviews.map((review) => ({
+        ...review,
+        businessName: business.name || "Vyntyra",
+      }));
+    })
+    : [];
+
+  const sortedReviews = allReviews
+    .sort((a, b) => Number(b.time || 0) - Number(a.time || 0))
+    .slice(0, 8);
+
+  if (!sortedReviews.length) {
+    container.innerHTML = '<p class="is-muted">No recent public Google review text is available to display right now.</p>';
+    return;
+  }
+
+  container.innerHTML = sortedReviews.map((review) => {
+    const author = escapeHtml(review.authorName || "Anonymous");
+    const businessName = escapeHtml(review.businessName || "Vyntyra");
+    const rating = Number(review.rating || 0);
+    const timeLabel = escapeHtml(review.relativeTimeDescription || "Recently");
+    const reviewText = escapeHtml(String(review.text || "").slice(0, 280)) || "No text provided in this review.";
+
+    return `
+      <article class="review-card">
+        <strong>${author}</strong>
+        <p class="review-meta">${buildStars(rating)} ${rating ? rating.toFixed(1) : "0.0"} • ${timeLabel} • ${businessName}</p>
+        <p class="review-text">${reviewText}</p>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderProfileDirectory(container, profiles) {
+  if (!container) {
+    return;
+  }
+
+  if (!Array.isArray(profiles) || !profiles.length) {
+    container.innerHTML = '<p class="is-muted">Profile directory is not available right now.</p>';
+    return;
+  }
+
+  container.innerHTML = profiles.map((profile) => {
+    const safePlatform = escapeHtml(profile.platform || "Profile");
+    const safeUrl = escapeHtml(profile.url || "#");
+    const safeNote = escapeHtml(profile.note || "");
+    const safeType = escapeHtml(profile.type || "link");
+
+    return `
+      <article class="profile-card">
+        <strong>${safePlatform}</strong>
+        <p class="profile-note">${safeNote}</p>
+        <a class="mini-link" href="${safeUrl}" target="_blank" rel="noreferrer">Open ${safeType === "search" ? "Search" : "Profile"}</a>
+      </article>
+    `;
+  }).join("");
+}
+
+async function updateReputationSection() {
+  const ratingSummaryEl = document.getElementById("google-rating-summary");
+  const ratingCountEl = document.getElementById("google-rating-count");
+  const syncAtEl = document.getElementById("google-sync-at");
+  const businessListEl = document.getElementById("google-business-list");
+  const reviewListEl = document.getElementById("google-review-list");
+  const profileListEl = document.getElementById("profile-directory-list");
+  const sourceNoteEl = document.getElementById("google-review-source-note");
+
+  if (!ratingSummaryEl || !ratingCountEl || !syncAtEl || !businessListEl || !reviewListEl || !profileListEl) {
+    return;
+  }
+
+  try {
+    const response = await apiFetch("/reputation/overview", { method: "GET" });
+    if (!response.ok) {
+      throw new Error("Unable to load reputation data");
+    }
+
+    const payload = await readJsonResponse(response, "Unable to load reputation details");
+    const combined = payload?.google?.combined || {};
+    const businesses = Array.isArray(payload?.google?.businesses) ? payload.google.businesses : [];
+    const profiles = Array.isArray(payload?.profiles) ? payload.profiles : [];
+
+    const averageRating = Number(combined.averageRating || 0);
+    ratingSummaryEl.textContent = averageRating > 0
+      ? `${averageRating.toFixed(1)} / 5`
+      : "Not available";
+    ratingCountEl.textContent = formatCompactNumber(combined.totalRatings || 0);
+
+    const generatedAtMs = Date.parse(String(payload?.generatedAt || ""));
+    syncAtEl.textContent = Number.isFinite(generatedAtMs)
+      ? new Date(generatedAtMs).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+      : "Not available";
+
+    renderBusinessListings(businessListEl, businesses);
+    renderGoogleReviews(reviewListEl, businesses);
+    renderProfileDirectory(profileListEl, profiles);
+
+    const sourceLabel = payload?.autoUpdated
+      ? "Auto-updated from Google Places API."
+      : "Google API key not configured. Showing fallback profile links.";
+    const extraMessage = payload?.message ? ` ${payload.message}` : "";
+    if (sourceNoteEl) {
+      sourceNoteEl.textContent = `${sourceLabel}${extraMessage}`;
+    }
+  } catch (error) {
+    ratingSummaryEl.textContent = "Not available";
+    ratingCountEl.textContent = "Not available";
+    syncAtEl.textContent = "Not available";
+    businessListEl.innerHTML = '<p class="is-muted">Unable to load Google listing details right now.</p>';
+    reviewListEl.innerHTML = '<p class="is-muted">Unable to load Google reviews right now.</p>';
+    profileListEl.innerHTML = '<p class="is-muted">Unable to load profile directory right now.</p>';
+    if (sourceNoteEl) {
+      sourceNoteEl.textContent = "Data refresh failed. Please retry in a few moments.";
+    }
+  }
+}
+
+function setupReputationSection() {
+  const container = document.getElementById("reputation");
+  if (!container) {
+    return;
+  }
+
+  updateReputationSection();
+  setInterval(updateReputationSection, REPUTATION_REFRESH_MS);
 }
 
 function setupSiteChatbot() {
@@ -583,22 +781,22 @@ function setupSiteChatbot() {
 
     if (/\b(contact|phone|email|support|help line|helpline)\b/.test(q)) {
       return {
-        text: "Support: support@vyntyraconsultancyservices.in, Training and Internships: internships@vyntyraconsultancyservices.in, Phone: +91 93905 15106.",
-        speech: "Support email is support at vyntyraconsultancyservices dot in. Training and internship email is internships at vyntyraconsultancyservices dot in. Phone number is plus 91 93905 15106.",
+        text: "Support: support@vyntyraconsultancyservices.in, Internships: internships@vyntyraconsultancyservices.in, Phone: +91 93905 15106.",
+        speech: "Support email is support at vyntyraconsultancyservices dot in. Internship email is internships at vyntyraconsultancyservices dot in. Phone number is plus 91 93905 15106.",
       };
     }
 
     if (/\b(journey|timeline|duration|weeks|phase)\b/.test(q)) {
       return {
-        text: "Training and internship journey is 13 weeks: Foundation (4 weeks), Implementation (6 weeks), and Career Launch (3 weeks). <a href='#journey'>View Journey</a>",
-        speech: "Training and internship journey is 13 weeks with foundation, implementation, and career launch phases.",
+        text: "Internship journey is 13 weeks: Foundation (4 weeks), Implementation (6 weeks), and Career Launch (3 weeks). <a href='#journey'>View Journey</a>",
+        speech: "Internship journey is 13 weeks with foundation, implementation, and career launch phases.",
       };
     }
 
     if (/\b(eligible|eligibility|who can apply|intake|batch)\b/.test(q)) {
       return {
-        text: "Eligibility includes undergraduate and graduate students from 2024, 2025, and 2026 batches across B.Tech (CS and allied branches), BCA, BE, BBA, and MBA, with focus on Tier 2 and Tier 3 colleges.",
-        speech: "Eligibility includes undergraduate and graduate students from 2024, 2025, and 2026 batches across B Tech, B C A, B E, B B A, and M B A, with focus on tier 2 and tier 3 colleges.",
+        text: "Eligibility targets pre-final and final year students from 2027 and 2028 graduating batches, with focus on Tier 2 and Tier 3 colleges.",
+        speech: "Eligibility targets pre-final and final year students from 2027 and 2028 graduating batches, with focus on tier 2 and tier 3 colleges.",
       };
     }
 
@@ -625,7 +823,7 @@ function setupSiteChatbot() {
     panel.setAttribute("aria-hidden", "false");
     launchBtn.setAttribute("aria-expanded", "true");
     if (!messagesEl.children.length) {
-      appendMessage("Hello, I am Vyntyra Assistant. Ask me anything about training tracks, fees, deadlines, or application.", "bot");
+      appendMessage("Hello, I am Vyntyra Assistant. Ask me anything about tracks, fees, deadlines, or application.", "bot");
     }
     input.focus();
   };
@@ -685,6 +883,7 @@ function setupSiteChatbot() {
 
 document.addEventListener("DOMContentLoaded", () => {
   setupSiteChatbot();
+  setupReputationSection();
 
   const form = document.querySelector(".apply-form");
   const payBtn = document.getElementById("pay-registration-fee-btn");
@@ -741,7 +940,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function applyDomainPricingState(selectedValue) {
     const hasDomainSelection = Boolean(selectedValue);
-    const isTestDomain = selectedValue === TEST_DOMAIN;
 
     if (!durationPricingSection) {
       return;
@@ -784,10 +982,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const isCoreProgrammingDomain = CORE_PROGRAMMING_DOMAINS.has(selectedValue);
 
     if (durationSelect) {
-      if (isTestDomain) {
-        durationSelect.innerHTML = '<option value="fixed-test" data-price="1" selected>Test Track - ₹1 (Fixed)</option>';
-        durationSelect.disabled = true;
-      } else if (isCoreProgrammingDomain) {
+      if (isCoreProgrammingDomain) {
         durationSelect.innerHTML = '<option value="fixed-core" data-price="199" selected>Core Programming Track - ₹199 (Fixed)</option>';
         durationSelect.disabled = true;
       } else {
@@ -812,7 +1007,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     addonCheckboxes.forEach((checkbox) => {
       checkbox.checked = false;
-      checkbox.disabled = isTestDomain;
+      checkbox.disabled = false;
     });
 
     updatePriceSummary();
@@ -970,25 +1165,21 @@ function setupResumeHelpModal() {
  */
 function updatePriceSummary() {
   const selectedDomain = String(document.getElementById("preferred_domain")?.value || "").trim();
-  const isTestDomain = selectedDomain === TEST_DOMAIN;
   const isCoreProgrammingDomain = CORE_PROGRAMMING_DOMAINS.has(selectedDomain);
   const durationSelect = document.getElementById("internship_duration");
   const selectedDurationOption = durationSelect?.selectedOptions?.[0] || null;
   const addonCheckboxes = document.querySelectorAll('input[name="addon"]:checked');
   
-  // Base price: fixed ₹1 for Test, fixed ₹199 for core domains, or duration-based for non-core.
-  let basePrice = isTestDomain ? TEST_FIXED_PRICE : (isCoreProgrammingDomain ? CORE_FIXED_PRICE : 2999);
-  if (!isTestDomain && !isCoreProgrammingDomain && selectedDurationOption) {
+  // Base price: fixed ₹199 for core domains, or duration-based for all other domains.
+  let basePrice = isCoreProgrammingDomain ? CORE_FIXED_PRICE : 2999;
+  if (!isCoreProgrammingDomain && selectedDurationOption) {
     basePrice = parseInt(selectedDurationOption.dataset.price || "2999", 10);
   }
   
-  // Add-ons are disabled for Test domain so the amount remains fixed at ₹1.
   let addonsTotal = 0;
-  if (!isTestDomain) {
-    addonCheckboxes.forEach(checkbox => {
-      addonsTotal += parseInt(checkbox.dataset.addonPrice || "0", 10);
-    });
-  }
+  addonCheckboxes.forEach(checkbox => {
+    addonsTotal += parseInt(checkbox.dataset.addonPrice || "0", 10);
+  });
   
   const totalPrice = basePrice + addonsTotal;
   
@@ -1007,15 +1198,11 @@ function updatePriceSummary() {
   const priceField = document.getElementById("internship_price");
 
   if (durationField) {
-    if (isTestDomain) {
-      durationField.value = "fixed-test";
-    } else {
-      durationField.value = isCoreProgrammingDomain ? "fixed-core" : (durationSelect?.value || "2");
-    }
+    durationField.value = isCoreProgrammingDomain ? "fixed-core" : (durationSelect?.value || "2");
   }
   if (addonsField) {
     const selectedAddons = Array.from(addonCheckboxes).map(cb => cb.value).join(", ");
-    addonsField.value = isTestDomain ? "" : selectedAddons;
+    addonsField.value = selectedAddons;
   }
   if (priceField) priceField.value = totalPrice;
 }
@@ -1260,8 +1447,8 @@ async function initiatePayment(gateway = "razorpay") {
       key: RAZORPAY_KEY,
       amount: orderData.amount, // Amount in paise
       currency: orderData.currency,
-      name: "Vyntyra Summer Training Program and Internship",
-      description: "Registration Fee - Summer Training Program and Internship 2026",
+      name: "Vyntyra Internship",
+      description: "Registration Fee - Summer Internship 2026",
       order_id: orderData.orderId,
       prefill: {
         name: formData.get("full_name"),

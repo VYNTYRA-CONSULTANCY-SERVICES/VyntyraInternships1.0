@@ -2,7 +2,7 @@
   "name": "vyntyra-internships-monorepo",
   "version": "1.0.0",
   "private": true,
-  "description": "Frontend + backend workspace",
+  "description": "Deployment wrapper for frontend + backend repo",
   "type": "module",
   "engines": {
     "node": "20.x"
@@ -10,9 +10,14 @@
   "scripts": {
     "postinstall": "npm install --prefix backend",
     "start": "npm --prefix backend start",
-    "dev": "npm --prefix backend run dev"
+    "dev": "npm --prefix backend run dev",
+    "build:pages": "wrangler pages functions build --outfile _worker.js",
+    "build": "npm run build:pages"
   },
   "dependencies": {
     "hono": "^4.6.12"
+  },
+  "devDependencies": {
+    "wrangler": "^4.41.0"
   }
 }
