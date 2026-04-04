@@ -5,6 +5,7 @@ import path from "path";
 import crypto from "node:crypto";
 
 import Application from "../models/Application.js";
+import Payment from "../models/Payment.js";
 // import { publishJob } from "../services/rabbitmq.js";
 import { sendWelcomeEmail } from "../services/email.js";
 import { handleResumeUpload } from "../jobs/handlers.js";
@@ -179,7 +180,58 @@ if (!consent) {
     return res.status(201).json({
       message: "Application submitted. Please complete payment to secure your slot.",
       applicationId: application._id,
+      registrationId: application.registrationId,
       status: application.status,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/:applicationId/registration", async (req, res, next) => {
+  try {
+    const { applicationId } = req.params;
+    const application = await Application.findById(applicationId)
+      .select("_id fullName email registrationId status internshipPrice createdAt updatedAt")
+      .lean();
+
+    if (!application) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    const payment = await Payment.findOne({ applicationId: application._id })
+      .select(
+        "gateway amount currency status method razorpayOrderId razorpayPaymentId payuPaymentId payuTxnId timestamp updatedAt"
+      )
+      .lean();
+
+    if (application.status !== "COMPLETED_AND_PAID") {
+      return res.status(409).json({
+        message: "Application is not fully completed yet. Please complete payment first.",
+      });
+    }
+
+    const transactionId = payment?.razorpayPaymentId
+      || payment?.payuPaymentId
+      || payment?.payuTxnId
+      || null;
+
+    return res.json({
+      applicationId: String(application._id),
+      applicantName: application.fullName,
+      email: application.email,
+      registrationId: application.registrationId || null,
+      submittedAt: application.updatedAt || application.createdAt,
+      payment: {
+        gateway: payment?.gateway || null,
+        amount: Number(payment?.amount || application?.internshipPrice || 0),
+        currency: payment?.currency || "INR",
+        status: payment?.status || null,
+        method: payment?.method || null,
+        orderId: payment?.razorpayOrderId || null,
+        transactionId,
+        timestamp: payment?.timestamp || payment?.updatedAt || null,
+      },
     });
   } catch (error) {
     next(error);

@@ -1,0 +1,59 @@
+{
+  "source": "python-google-public-search",
+  "updatedAt": "2026-04-04T21:42:27.976429+00:00",
+  "places": [
+    {
+      "placeId": null,
+      "name": "Vyntyra Consultancy Services",
+      "mapUrl": "https://www.google.com/maps/place/Vyntyra+Consultancy+Services",
+      "address": null,
+      "rating": 4.0,
+      "totalRatings": 1,
+      "reviews": []
+    },
+    {
+      "placeId": null,
+      "name": "Vyntyra Consultancy Services Pvt Ltd",
+      "mapUrl": "https://www.google.com/maps/place/Vyntyra+Consultancy+Services+Pvt+Ltd",
+      "address": null,
+      "rating": 4.0,
+      "totalRatings": 1,
+      "reviews": []
+    },
+    {
+      "placeId": null,
+      "name": "Vyntyra Consultancy Services reviews visakhapatnam",
+      "mapUrl": "https://www.google.com/maps/place/Vyntyra+Consultancy+Services+reviews+visakhapatnam",
+      "address": null,
+      "rating": 4.0,
+      "totalRatings": 1,
+      "reviews": []
+    },
+    {
+      "placeId": null,
+      "name": "Vyntyra Consultancy Services google maps",
+      "mapUrl": "https://www.google.com/maps/place/Vyntyra+Consultancy+Services+google+maps",
+      "address": null,
+      "rating": 4.0,
+      "totalRatings": 1,
+      "reviews": []
+    },
+    {
+      "placeId": null,
+      "name": "Vyntyra Consultancy Services Pvt. Ltd",
+      "mapUrl": "https://www.google.com/maps/place/Vyntyra+Consultancy+Services+Pvt.+Ltd",
+      "address": null,
+      "rating": 4.0,
+      "totalRatings": 1,
+      "reviews": []
+    }
+  ],
+  "aggregate": {
+    "averageRating": 4.0,
+    "totalRatings": 5,
+    "totalPlaces": 5
+  },
+  "reviews": [],
+  "cached": false,
+  "cacheTtlMs": 900000
+}

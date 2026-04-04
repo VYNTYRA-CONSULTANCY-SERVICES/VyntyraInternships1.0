@@ -23,8 +23,6 @@ const RAZORPAY_KEY = "rzp_live_SVAKT9bXZhJT85";
 const PAYMENT_PENDING_APP_KEY = "vyntyra_pending_application_id";
 const RAZORPAY_SDK_ID = "razorpay-checkout-sdk";
 const CORE_FIXED_PRICE = 199;
-const TEST_DOMAIN = "Test";
-const TEST_FIXED_PRICE = 1;
 const VISITOR_COUNT_REFRESH_MS = 20000;
 const VISITOR_TIMESTAMP_REFRESH_MS = 1000;
 
@@ -358,7 +356,18 @@ async function updateVisitorCountTotal() {
 
 async function registerVisitorHit() {
   try {
-    const response = await apiFetch("/metrics/visitors/hit", { method: "POST" });
+    const currentUrl = new URL(window.location.href);
+    const utmSource = currentUrl.searchParams.get("utm_source") || currentUrl.searchParams.get("source") || "";
+    const response = await apiFetch("/metrics/visitors/hit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userAgent: navigator.userAgent,
+        referrer: document.referrer || "",
+        landingUrl: window.location.href,
+        utmSource,
+      }),
+    });
     if (!response.ok) {
       return;
     }
@@ -741,7 +750,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function applyDomainPricingState(selectedValue) {
     const hasDomainSelection = Boolean(selectedValue);
-    const isTestDomain = selectedValue === TEST_DOMAIN;
 
     if (!durationPricingSection) {
       return;
@@ -784,10 +792,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const isCoreProgrammingDomain = CORE_PROGRAMMING_DOMAINS.has(selectedValue);
 
     if (durationSelect) {
-      if (isTestDomain) {
-        durationSelect.innerHTML = '<option value="fixed-test" data-price="1" selected>Test Track - ₹1 (Fixed)</option>';
-        durationSelect.disabled = true;
-      } else if (isCoreProgrammingDomain) {
+      if (isCoreProgrammingDomain) {
         durationSelect.innerHTML = '<option value="fixed-core" data-price="199" selected>Core Programming Track - ₹199 (Fixed)</option>';
         durationSelect.disabled = true;
       } else {
@@ -812,7 +817,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     addonCheckboxes.forEach((checkbox) => {
       checkbox.checked = false;
-      checkbox.disabled = isTestDomain;
+      checkbox.disabled = false;
     });
 
     updatePriceSummary();
@@ -835,9 +840,13 @@ document.addEventListener("DOMContentLoaded", () => {
     payBtn.addEventListener("focus", warmPaymentInfrastructure, { once: true });
     payBtn.addEventListener("touchstart", warmPaymentInfrastructure, { once: true, passive: true });
     payBtn.addEventListener("click", (e) => {
+      const currentScrollY = window.scrollY;
       e.preventDefault();
       e.stopPropagation();
       openPaymentGatewayModal();
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: currentScrollY, left: 0, behavior: "auto" });
+      });
       return false;
     });
     
@@ -965,30 +974,89 @@ function setupResumeHelpModal() {
   });
 }
 
+function setupRegistrationSuccessModal() {
+  const modal = document.getElementById("registration-success-modal");
+  if (!modal) return;
+
+  const closeButtons = modal.querySelectorAll("[data-close-registration-success]");
+
+  const closeModal = () => {
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+  };
+
+  closeButtons.forEach((button) => {
+    button.addEventListener("click", closeModal);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal.classList.contains("is-open")) {
+      closeModal();
+    }
+  });
+}
+
+function showRegistrationSuccessDetails(details) {
+  const modal = document.getElementById("registration-success-modal");
+  if (!modal) return;
+
+  const greetingEl = document.getElementById("registration-success-greeting");
+  const registrationIdEl = document.getElementById("registration-success-id");
+  const paymentGatewayEl = document.getElementById("registration-success-payment-gateway");
+  const paymentAmountEl = document.getElementById("registration-success-payment-amount");
+  const paymentTransactionEl = document.getElementById("registration-success-transaction-id");
+  const paymentStatusEl = document.getElementById("registration-success-payment-status");
+  const paymentTimeEl = document.getElementById("registration-success-payment-time");
+
+  const applicantName = String(details?.applicantName || "Applicant").trim() || "Applicant";
+  const registrationId = String(details?.registrationId || "N/A").trim() || "N/A";
+  const payment = details?.payment || {};
+
+  const amount = Number(payment?.amount || 0);
+  const amountLabel = amount > 0
+    ? `${String(payment?.currency || "INR").toUpperCase()} ${amount.toLocaleString("en-IN")}`
+    : "N/A";
+  const transactionId = String(payment?.transactionId || payment?.orderId || "N/A").trim() || "N/A";
+  const paymentTimestamp = payment?.timestamp ? new Date(payment.timestamp) : null;
+  const paymentTimeLabel = paymentTimestamp && !Number.isNaN(paymentTimestamp.getTime())
+    ? paymentTimestamp.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+    : "N/A";
+
+  if (greetingEl) greetingEl.textContent = `Hi ${applicantName}, your application has been submitted successfully.`;
+  if (registrationIdEl) registrationIdEl.textContent = registrationId;
+  if (paymentGatewayEl) paymentGatewayEl.textContent = String(payment?.gateway || "N/A").toUpperCase();
+  if (paymentAmountEl) paymentAmountEl.textContent = amountLabel;
+  if (paymentTransactionEl) paymentTransactionEl.textContent = transactionId;
+  if (paymentStatusEl) paymentStatusEl.textContent = String(payment?.status || "N/A").toUpperCase();
+  if (paymentTimeEl) paymentTimeEl.textContent = paymentTimeLabel;
+
+  modal.classList.add("is-open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  modal.querySelector(".resume-help-dialog")?.focus();
+}
+
 /**
  * Update price summary based on duration and add-ons selection
  */
 function updatePriceSummary() {
   const selectedDomain = String(document.getElementById("preferred_domain")?.value || "").trim();
-  const isTestDomain = selectedDomain === TEST_DOMAIN;
   const isCoreProgrammingDomain = CORE_PROGRAMMING_DOMAINS.has(selectedDomain);
   const durationSelect = document.getElementById("internship_duration");
   const selectedDurationOption = durationSelect?.selectedOptions?.[0] || null;
   const addonCheckboxes = document.querySelectorAll('input[name="addon"]:checked');
   
-  // Base price: fixed ₹1 for Test, fixed ₹199 for core domains, or duration-based for non-core.
-  let basePrice = isTestDomain ? TEST_FIXED_PRICE : (isCoreProgrammingDomain ? CORE_FIXED_PRICE : 2999);
-  if (!isTestDomain && !isCoreProgrammingDomain && selectedDurationOption) {
+  // Base price: fixed ₹199 for core domains, or duration-based for all other domains.
+  let basePrice = isCoreProgrammingDomain ? CORE_FIXED_PRICE : 2999;
+  if (!isCoreProgrammingDomain && selectedDurationOption) {
     basePrice = parseInt(selectedDurationOption.dataset.price || "2999", 10);
   }
   
-  // Add-ons are disabled for Test domain so the amount remains fixed at ₹1.
   let addonsTotal = 0;
-  if (!isTestDomain) {
-    addonCheckboxes.forEach(checkbox => {
-      addonsTotal += parseInt(checkbox.dataset.addonPrice || "0", 10);
-    });
-  }
+  addonCheckboxes.forEach(checkbox => {
+    addonsTotal += parseInt(checkbox.dataset.addonPrice || "0", 10);
+  });
   
   const totalPrice = basePrice + addonsTotal;
   
@@ -1007,15 +1075,11 @@ function updatePriceSummary() {
   const priceField = document.getElementById("internship_price");
 
   if (durationField) {
-    if (isTestDomain) {
-      durationField.value = "fixed-test";
-    } else {
-      durationField.value = isCoreProgrammingDomain ? "fixed-core" : (durationSelect?.value || "2");
-    }
+    durationField.value = isCoreProgrammingDomain ? "fixed-core" : (durationSelect?.value || "2");
   }
   if (addonsField) {
     const selectedAddons = Array.from(addonCheckboxes).map(cb => cb.value).join(", ");
-    addonsField.value = isTestDomain ? "" : selectedAddons;
+    addonsField.value = selectedAddons;
   }
   if (priceField) priceField.value = totalPrice;
 }
@@ -1181,6 +1245,22 @@ async function submitApplication() {
     setFormStatus(statusEl, "Finalizing your application...", "info");
     submitBtn.disabled = true;
 
+    const applicationId = String(applicationData?.applicationId || "").trim();
+    if (!applicationId) {
+      throw new Error("Application reference not found. Please retry payment and submit again.");
+    }
+
+    const registrationResponse = await apiFetch(`/applications/${applicationId}/registration`, {
+      method: "GET",
+    });
+    const registrationData = await readJsonResponse(registrationResponse, "Unable to fetch registration details");
+
+    if (!registrationResponse.ok) {
+      throw new Error(registrationData.message || "Unable to load registration details");
+    }
+
+    showRegistrationSuccessDetails(registrationData);
+
     const form = document.querySelector(".apply-form");
     form?.reset();
     applicationData = {};
@@ -1194,7 +1274,7 @@ async function submitApplication() {
     }
 
     submitBtn.disabled = true;
-    setFormStatus(statusEl, "Application submitted successfully. Confirmation has been recorded.", "success");
+    setFormStatus(statusEl, "Application submitted successfully. Registration details are now available.", "success");
   } catch (error) {
     setFormStatus(statusEl, `Error: ${error.message}`, "error");
     console.error(error);
@@ -1418,3 +1498,4 @@ function setupFormNavigation() {
 // Call on DOM ready
 document.addEventListener("DOMContentLoaded", setupFormNavigation);
 document.addEventListener("DOMContentLoaded", setupResumeHelpModal);
+document.addEventListener("DOMContentLoaded", setupRegistrationSuccessModal);
