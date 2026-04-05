@@ -2943,6 +2943,15 @@ body {
 
 body.modal-open {
   overflow: hidden;
+  touch-action: none;
+}
+
+body.modal-open #topBtn,
+body.modal-open .chatbot-launch,
+body.modal-open .chatbot-panel {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .legal-modal {
@@ -3099,7 +3108,10 @@ body.modal-open {
   position: fixed;
   inset: 0;
   display: none;
-  z-index: 2950;
+  z-index: 2147483647;
+  padding: 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .payment-gateway-modal.is-open {
@@ -3113,11 +3125,13 @@ body.modal-open {
   inset: 0;
   background: rgba(1, 6, 16, 0.74);
   backdrop-filter: blur(7px);
+  z-index: 0;
 }
 
 .payment-gateway-dialog {
   position: relative;
   width: min(760px, calc(100% - 2rem));
+  max-height: calc(100vh - 2rem);
   border-radius: 1.2rem;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background:
@@ -3126,6 +3140,10 @@ body.modal-open {
     linear-gradient(150deg, rgba(8, 16, 36, 0.97), rgba(3, 8, 20, 0.98));
   box-shadow: 0 30px 70px rgba(0, 0, 0, 0.66);
   padding: 1.2rem;
+  margin: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  z-index: 1;
   animation: help-modal-enter 240ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
