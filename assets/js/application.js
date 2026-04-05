@@ -1148,12 +1148,7 @@ function openPaymentGatewayModal() {
   const form = document.querySelector(".apply-form");
   if (!modal || !form) return;
 
-  if (!form.reportValidity()) {
-    setFormStatus(statusEl, "Please complete all required fields before selecting payment gateway.", "warning");
-    return;
-  }
-
-  setFormStatus(statusEl, "Estimated wait time is 5 min.", "info");
+  setFormStatus(statusEl, "Choose a payment gateway to continue.", "info");
 
   warmPaymentInfrastructure();
   preparePaymentSession({ prefetchRazorpayOrder: true }).catch(() => {
