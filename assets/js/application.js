@@ -677,6 +677,7 @@ function setupSiteChatbot() {
 
 document.addEventListener("DOMContentLoaded", () => {
   setupSiteChatbot();
+  installModalStateGuard();
 
   const form = document.querySelector(".apply-form");
   const payBtn = document.getElementById("pay-registration-fee-btn");
@@ -1109,6 +1110,39 @@ function setPaymentConfirmedState(gatewayLabel, applicationIdFromGateway) {
   }
 
   showPaymentConfirmationGreeting(gatewayLabel);
+}
+
+function installModalStateGuard() {
+  const modalNodes = Array.from(
+    document.querySelectorAll("#payment-gateway-modal, #resume-help-modal, .legal-modal")
+  );
+
+  if (!modalNodes.length) {
+    return;
+  }
+
+  const syncBodyModalState = () => {
+    const hasOpenModal = modalNodes.some((node) => node.classList.contains("is-open"));
+    document.body.classList.toggle("modal-open", hasOpenModal);
+  };
+
+  // Recover from stale modal state after browser restore/back-forward cache.
+  const resetAllModals = () => {
+    modalNodes.forEach((node) => {
+      node.classList.remove("is-open");
+      node.setAttribute("aria-hidden", "true");
+    });
+    document.body.classList.remove("modal-open");
+  };
+
+  resetAllModals();
+
+  const observer = new MutationObserver(syncBodyModalState);
+  modalNodes.forEach((node) => {
+    observer.observe(node, { attributes: true, attributeFilter: ["class"] });
+  });
+
+  window.addEventListener("pageshow", syncBodyModalState);
 }
 
 function setupPaymentGatewayModal(modal) {
