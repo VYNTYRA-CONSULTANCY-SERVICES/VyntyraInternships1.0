@@ -3,17 +3,7 @@
  * Frontend integration with Node.js backend API and Razorpay payment gateway
  */
 
-const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
-const isProduction = !localHosts.has(window.location.hostname);
-const configuredApiBase = document.body?.dataset?.apiBase?.trim();
-const renderApiBase = "https://vyntyrainternships-backend.onrender.com/api";
-const API_BASE_CANDIDATES = isProduction
-  ? [configuredApiBase, renderApiBase, `${window.location.origin}/api`]
-  : [configuredApiBase, `${window.location.origin}/api`, renderApiBase]
-      .filter(Boolean);
-
-const UNIQUE_API_BASE_CANDIDATES = [...new Set(API_BASE_CANDIDATES)];
-let activeApiBase = UNIQUE_API_BASE_CANDIDATES.find(Boolean) || "";
+const API_BASE = `${window.location.origin}/api`;
 // Live Razorpay public key
 const RAZORPAY_KEY = "rzp_live_SVAKT9bXZhJT85";
 const PAYMENT_PENDING_APP_KEY = "vyntyra_pending_application_id";
@@ -53,46 +43,22 @@ document.addEventListener('DOMContentLoaded', startKeepAliveTimer, { once: true 
 
 async function apiFetch(path, options = {}) {
   const { expectsJson = true, ...fetchOptions } = options;
-  const candidates = [activeApiBase, ...UNIQUE_API_BASE_CANDIDATES].filter(Boolean);
-  const dedupedCandidates = [...new Set(candidates)];
-  let lastResponse;
-  let lastError;
+  try {
+    const response = await fetch(`${API_BASE}${path}`, fetchOptions);
 
-  for (const base of dedupedCandidates) {
-    try {
-      const response = await fetch(`${base}${path}`, fetchOptions);
+    if (expectsJson) {
+      const contentType = (response.headers.get("content-type") || "").toLowerCase();
 
-      if (expectsJson) {
-        const contentType = (response.headers.get("content-type") || "").toLowerCase();
-
-        if (!contentType.includes("application/json")) {
-          // Retry next API candidate when a non-JSON error page is returned.
-          if (response.status >= 500) {
-            lastResponse = response;
-            continue;
-          }
-          throw new Error("Invalid response from server (not JSON)");
-        }
+      if (!contentType.includes("application/json")) {
+        throw new Error("Invalid response from server (not JSON)");
       }
-
-      if (response.status >= 500) {
-        lastResponse = response;
-        continue;
-      }
-
-      activeApiBase = base;
-      return response;
-    } catch (error) {
-      lastError = error;
     }
-  }
 
-  if (lastResponse) {
-    return lastResponse;
+    return response;
+  } catch (lastError) {
+    console.error("API Error:", lastError);
+    throw new Error("Unable to reach backend server. Please try again in a few moments.");
   }
-
-  console.error("API Error:", lastError);
-  throw new Error("Unable to reach backend server. Please try again in a few moments.");
 }
 
 async function readJsonResponse(response, operationLabel) {
@@ -116,7 +82,7 @@ async function readJsonResponse(response, operationLabel) {
 }
 
 function getBackendOrigin() {
-  return activeApiBase.replace(/\/api\/?$/, "");
+  return API_BASE.replace(/\/api\/?$/, "");
 }
 
 function warmPaymentInfrastructure() {
