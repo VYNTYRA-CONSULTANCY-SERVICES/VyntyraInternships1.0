@@ -11,12 +11,6 @@ This service implements the internship application workflow with high-volume ing
 - `npm run dev` (requires `nodemon`) while working locally.
 - `npm start` for production.
 
-## Google Reviews Auto Sync (Python)
-- Run `npm run sync:google-reviews:py` to generate `backend/data/google_reviews_snapshot.json` from public Google search data.
-- Optional continuous mode: `python ../scripts/sync_google_reviews.py --interval-minutes 10`.
-- The backend `GET /api/metrics/reviews/google` endpoint reads this snapshot first when present.
-- This mode does not require a Google API key, but it is best-effort because public page structures can change.
-
 ## API Endpoints
 - `POST /api/applications`
 	- Accepts `multipart/form-data` with fields:

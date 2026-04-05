@@ -20,7 +20,6 @@ const jsonHeaders = {
 const asJson = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: jsonHeaders });
 const nowIso = () => new Date().toISOString();
 const uuid = () => crypto.randomUUID();
-let schemaReadyPromise;
 
 function parseAllowedOrigins(raw) {
   if (!raw) return [];
@@ -38,12 +37,7 @@ function resolveCorsOrigin(origin, allowedOrigins) {
 
 const withBindingsValidation = createMiddleware(async (c, next) => {
   if (!c.env.DB) return c.json({ message: "D1 binding DB is missing" }, 500);
-  try {
-    await ensureCoreSchema(c.env.DB);
-  } catch (error) {
-    console.error("ensureCoreSchema error", error);
-    return c.json({ message: "Database schema initialization failed" }, 500);
-  }
+  if (!c.env.RESUMES) return c.json({ message: "R2 binding RESUMES is missing" }, 500);
   await next();
 });
 
@@ -77,143 +71,6 @@ app.get("/keep-alive", (c) => c.json({ status: "alive", ts: Date.now() }));
 app.get("/health", (c) => c.json({ status: "ok", ts: Date.now() }));
 
 const VISITOR_COUNTER_KEY = "visitors:internships-home";
-
-const ensureCoreTables = async (db) => {
-  await db
-    .prepare(
-      `CREATE TABLE IF NOT EXISTS applications (
-        id TEXT PRIMARY KEY,
-        full_name TEXT NOT NULL,
-        phone TEXT NOT NULL,
-        email TEXT NOT NULL,
-        linkedin_url TEXT NOT NULL,
-        college_name TEXT NOT NULL,
-        college_location TEXT NOT NULL,
-        preferred_domain TEXT NOT NULL,
-        languages TEXT NOT NULL,
-        remote_comfort TEXT NOT NULL,
-        placement_contact TEXT NOT NULL,
-        resume_key TEXT,
-        resume_url TEXT,
-        consent INTEGER NOT NULL DEFAULT 1,
-        status TEXT NOT NULL DEFAULT 'PENDING_PAYMENT',
-        payment_id TEXT,
-        registration_id TEXT UNIQUE,
-        duration_months TEXT,
-        selected_addons TEXT,
-        internship_price INTEGER,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      )`
-    )
-    .run();
-
-  await db
-    .prepare(
-      `CREATE TABLE IF NOT EXISTS payments (
-        id TEXT PRIMARY KEY,
-        application_id TEXT NOT NULL UNIQUE,
-        gateway TEXT NOT NULL DEFAULT 'razorpay',
-        razorpay_order_id TEXT UNIQUE,
-        razorpay_payment_id TEXT UNIQUE,
-        razorpay_signature TEXT,
-        payu_txn_id TEXT UNIQUE,
-        payu_payment_id TEXT UNIQUE,
-        payu_hash TEXT,
-        payu_unmapped_status TEXT,
-        amount INTEGER NOT NULL,
-        currency TEXT NOT NULL DEFAULT 'INR',
-        status TEXT NOT NULL DEFAULT 'pending',
-        method TEXT,
-        vpa TEXT,
-        card_last4 TEXT,
-        contact TEXT,
-        timestamp TEXT,
-        created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-      )`
-    )
-    .run();
-};
-
-const ensureColumnIfMissing = async (db, tableName, columnName, definition) => {
-  const pragma = await db.prepare(`PRAGMA table_info(${tableName})`).all();
-  const names = new Set((pragma?.results || []).map((row) => String(row.name || "")));
-  if (names.has(columnName)) {
-    return;
-  }
-  await db.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`).run();
-};
-
-const ensureCoreSchema = async (db) => {
-  if (!schemaReadyPromise) {
-    schemaReadyPromise = (async () => {
-      await ensureCoreTables(db);
-
-      await ensureColumnIfMissing(db, "applications", "payment_id", "TEXT");
-      await ensureColumnIfMissing(db, "applications", "registration_id", "TEXT");
-      await ensureColumnIfMissing(db, "applications", "duration_months", "TEXT");
-      await ensureColumnIfMissing(db, "applications", "selected_addons", "TEXT");
-      await ensureColumnIfMissing(db, "applications", "internship_price", "INTEGER");
-      await ensureColumnIfMissing(db, "applications", "created_at", "TEXT");
-      await ensureColumnIfMissing(db, "applications", "updated_at", "TEXT");
-
-      await ensureColumnIfMissing(db, "payments", "gateway", "TEXT");
-      await ensureColumnIfMissing(db, "payments", "payu_txn_id", "TEXT");
-      await ensureColumnIfMissing(db, "payments", "payu_payment_id", "TEXT");
-      await ensureColumnIfMissing(db, "payments", "payu_hash", "TEXT");
-      await ensureColumnIfMissing(db, "payments", "payu_unmapped_status", "TEXT");
-      await ensureColumnIfMissing(db, "payments", "method", "TEXT");
-      await ensureColumnIfMissing(db, "payments", "vpa", "TEXT");
-      await ensureColumnIfMissing(db, "payments", "card_last4", "TEXT");
-      await ensureColumnIfMissing(db, "payments", "contact", "TEXT");
-      await ensureColumnIfMissing(db, "payments", "timestamp", "TEXT");
-      await ensureColumnIfMissing(db, "payments", "created_at", "TEXT");
-      await ensureColumnIfMissing(db, "payments", "updated_at", "TEXT");
-    })().catch((error) => {
-      schemaReadyPromise = undefined;
-      throw error;
-    });
-  }
-
-  return schemaReadyPromise;
-};
-
-function buildRegistrationId() {
-  const date = new Date();
-  const y = date.getUTCFullYear();
-  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(date.getUTCDate()).padStart(2, "0");
-  const suffix = Math.floor(1000 + Math.random() * 9000);
-  return `VYNT${y}${m}${d}${suffix}`;
-}
-
-async function ensureApplicationRegistrationId(db, applicationId) {
-  const current = await db.prepare("SELECT registration_id FROM applications WHERE id = ?")
-    .bind(applicationId)
-    .first();
-  const existing = String(current?.registration_id || "").trim();
-  if (existing) {
-    return existing;
-  }
-
-  for (let i = 0; i < 6; i += 1) {
-    const registrationId = buildRegistrationId();
-    try {
-      await db.prepare("UPDATE applications SET registration_id = ?, updated_at = ? WHERE id = ?")
-        .bind(registrationId, nowIso(), applicationId)
-        .run();
-      return registrationId;
-    } catch (error) {
-      const message = String(error?.message || "").toLowerCase();
-      if (!message.includes("unique") || !message.includes("registration_id")) {
-        throw error;
-      }
-    }
-  }
-
-  throw new Error("Unable to generate a unique registration ID");
-}
 
 const ensureVisitorCounterTable = async (db) => {
   await db
@@ -289,202 +146,26 @@ function isValidHttpUrl(value) {
   }
 }
 
-function isLegacySchemaError(error) {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes("no such column") || message.includes("has no column named");
-}
-
-async function insertApplicationRecord(c, row) {
-  try {
-    await c.env.DB.prepare(
-      `INSERT INTO applications (
-        id, full_name, phone, email, linkedin_url, college_name, college_location,
-        preferred_domain, languages, remote_comfort, placement_contact,
-        resume_key, resume_url, consent, status,
-        duration_months, selected_addons, internship_price,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        row.applicationId,
-        row.fullName,
-        row.phone,
-        row.email,
-        row.linkedinUrl,
-        row.collegeName,
-        row.collegeLocation,
-        row.preferredDomain,
-        row.languages,
-        row.remoteComfort,
-        row.placementContact,
-        row.resumeKey,
-        row.resumeUrl,
-        row.consent,
-        row.status,
-        row.selectedDuration,
-        row.selectedAddons,
-        row.amount,
-        row.createdAt,
-        row.updatedAt
-      )
-      .run();
-  } catch (error) {
-    if (!isLegacySchemaError(error)) {
-      throw error;
-    }
-
-    // Backward-compatible insert for older D1 schemas without pricing add-on columns.
-    await c.env.DB.prepare(
-      `INSERT INTO applications (
-        id, full_name, phone, email, linkedin_url, college_name, college_location,
-        preferred_domain, languages, remote_comfort, placement_contact,
-        resume_key, resume_url, consent, status,
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        row.applicationId,
-        row.fullName,
-        row.phone,
-        row.email,
-        row.linkedinUrl,
-        row.collegeName,
-        row.collegeLocation,
-        row.preferredDomain,
-        row.languages,
-        row.remoteComfort,
-        row.placementContact,
-        row.resumeKey,
-        row.resumeUrl,
-        row.consent,
-        row.status,
-        row.createdAt,
-        row.updatedAt
-      )
-      .run();
-  }
-}
-
-async function upsertRazorpayPaymentRecord(c, row) {
-  try {
-    await c.env.DB.prepare(
-      `INSERT INTO payments (
-        id, application_id, razorpay_order_id, amount, currency, gateway, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 'razorpay', 'pending', ?, ?)
-      ON CONFLICT(application_id) DO UPDATE SET
-        razorpay_order_id = excluded.razorpay_order_id,
-        amount = excluded.amount,
-        currency = excluded.currency,
-        gateway = excluded.gateway,
-        status = 'pending',
-        updated_at = excluded.updated_at`
-    )
-      .bind(row.paymentId, row.applicationId, row.razorpayOrderId, row.amountInRupees, "INR", row.createdAt, row.updatedAt)
-      .run();
-  } catch (error) {
-    if (!isLegacySchemaError(error)) {
-      throw error;
-    }
-
-    // Backward-compatible upsert for older D1 schemas without gateway column.
-    await c.env.DB.prepare(
-      `INSERT INTO payments (
-        id, application_id, razorpay_order_id, amount, currency, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
-      ON CONFLICT(application_id) DO UPDATE SET
-        razorpay_order_id = excluded.razorpay_order_id,
-        amount = excluded.amount,
-        currency = excluded.currency,
-        status = 'pending',
-        updated_at = excluded.updated_at`
-    )
-      .bind(row.paymentId, row.applicationId, row.razorpayOrderId, row.amountInRupees, "INR", row.createdAt, row.updatedAt)
-      .run();
-  }
-}
-
-async function upsertPayUPaymentRecord(c, row) {
-  try {
-    await c.env.DB.prepare(
-      `INSERT INTO payments (
-        id, application_id, gateway, razorpay_order_id, payu_txn_id, amount, currency, status, created_at, updated_at
-      ) VALUES (?, ?, 'payu', ?, ?, ?, 'INR', 'pending', ?, ?)
-      ON CONFLICT(application_id) DO UPDATE SET
-        gateway = 'payu',
-        razorpay_order_id = excluded.razorpay_order_id,
-        payu_txn_id = excluded.payu_txn_id,
-        amount = excluded.amount,
-        currency = excluded.currency,
-        status = 'pending',
-        updated_at = excluded.updated_at`
-    )
-      .bind(row.paymentId, row.applicationId, row.legacyOrderPlaceholder, row.payuTxnId, row.amount, row.createdAt, row.updatedAt)
-      .run();
-  } catch (error) {
-    if (!isLegacySchemaError(error)) {
-      throw error;
-    }
-
-    await c.env.DB.prepare(
-      `INSERT INTO payments (
-        id, application_id, razorpay_order_id, amount, currency, status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, 'INR', 'pending', ?, ?)
-      ON CONFLICT(application_id) DO UPDATE SET
-        razorpay_order_id = excluded.razorpay_order_id,
-        amount = excluded.amount,
-        currency = excluded.currency,
-        status = 'pending',
-        updated_at = excluded.updated_at`
-    )
-      .bind(row.paymentId, row.applicationId, row.legacyOrderPlaceholder, row.amount, row.createdAt, row.updatedAt)
-      .run();
-  }
-}
-
 app.post("/api/applications", async (c) => {
   try {
-    const contentType = String(c.req.header("content-type") || "").toLowerCase();
-    let form = null;
-    let jsonBody = null;
-
-    if (contentType.includes("application/json")) {
-      jsonBody = await c.req.json();
-    } else {
-      try {
-        form = await c.req.formData();
-      } catch (parseError) {
-        return c.json({ message: "Invalid submission format. Please submit the form again." }, 400);
-      }
-    }
-
-    const getField = (name) => {
-      if (form) {
-        return form.get(name);
-      }
-      return jsonBody?.[name];
-    };
+    const form = await c.req.formData();
 
     for (const field of requiredFields) {
-      const value = String(getField(field) || "").trim();
+      const value = String(form.get(field) || "").trim();
       if (!value) {
         return c.json({ message: `Missing submission data: ${field}` }, 400);
       }
     }
 
-    const consentRaw = String(getField("consent") || "").toLowerCase();
+    const consentRaw = String(form.get("consent") || "").toLowerCase();
     const consent = consentRaw === "true" || consentRaw === "on" || consentRaw === "1";
     if (!consent) {
       return c.json({ message: "You must consent to data processing before applying." }, 400);
     }
 
-    const resumeLink = String(getField("resume_link") || "").trim();
-    const resumeFile = form ? form.get("resume") : null;
-    const hasFile = Boolean(
-      resumeFile
-      && typeof resumeFile === "object"
-      && typeof resumeFile.arrayBuffer === "function"
-      && Number(resumeFile.size || 0) > 0
-    );
+    const resumeLink = String(form.get("resume_link") || "").trim();
+    const resumeFile = form.get("resume");
+    const hasFile = resumeFile instanceof File && resumeFile.size > 0;
 
     if (!hasFile && !resumeLink) {
       return c.json({ message: "Provide either resume upload (PDF) or a public resume link." }, 400);
@@ -496,14 +177,8 @@ app.post("/api/applications", async (c) => {
 
     let resumeKey = null;
     let uploadedResumeUrl = null;
-    const applicationId = uuid();
-    const amount = Number.parseInt(String(getField("internship_price") || c.env.APPLICATION_FEE_INR || "499"), 10);
-    const now = nowIso();
 
     if (hasFile) {
-      if (!c.env.RESUMES) {
-        return c.json({ message: "Resume upload storage is not configured" }, 500);
-      }
       const ext = (resumeFile.name.split(".").pop() || "").toLowerCase();
       if (ext !== "pdf") {
         return c.json({ message: "Resume must be a PDF document." }, 400);
@@ -513,8 +188,9 @@ app.post("/api/applications", async (c) => {
         return c.json({ message: "Resume exceeds 5MB upload limit." }, 400);
       }
 
+      const appIdForKey = uuid();
       const safeName = resumeFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-      resumeKey = `applications/${applicationId}/${Date.now()}-${safeName}`;
+      resumeKey = `applications/${appIdForKey}/${Date.now()}-${safeName}`;
 
       await c.env.RESUMES.put(resumeKey, resumeFile.stream(), {
         httpMetadata: {
@@ -527,30 +203,87 @@ app.post("/api/applications", async (c) => {
         uploadedResumeUrl = `${publicBase}/${resumeKey}`;
       }
 
+      const applicationId = appIdForKey;
+      const amount = Number.parseInt(String(form.get("internship_price") || c.env.APPLICATION_FEE_INR || "499"), 10);
+
+      await c.env.DB.prepare(
+        `INSERT INTO applications (
+          id, full_name, phone, email, linkedin_url, college_name, college_location,
+          preferred_domain, languages, remote_comfort, placement_contact,
+          resume_key, resume_url, consent, status,
+          duration_months, selected_addons, internship_price,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+        .bind(
+          applicationId,
+          String(form.get("full_name")).trim(),
+          String(form.get("phone")).trim(),
+          String(form.get("email")).trim().toLowerCase(),
+          String(form.get("linkedin_url")).trim(),
+          String(form.get("college_name")).trim(),
+          String(form.get("college_location")).trim(),
+          String(form.get("preferred_domain")).trim(),
+          String(form.get("languages")).trim(),
+          String(form.get("remote_comfort")).trim(),
+          String(form.get("placement_contact")).trim(),
+          resumeKey,
+          uploadedResumeUrl || resumeLink || null,
+          1,
+          "PENDING_PAYMENT",
+          String(form.get("selected_duration") || "").trim() || null,
+          String(form.get("selected_addons") || "").trim() || null,
+          Number.isFinite(amount) && amount > 0 ? amount : 499,
+          nowIso(),
+          nowIso()
+        )
+        .run();
+
+      return c.json(
+        {
+          message: "Application submitted. Please complete payment to secure your slot.",
+          applicationId,
+          status: "PENDING_PAYMENT",
+        },
+        201
+      );
     }
 
-    await insertApplicationRecord(c, {
-      applicationId,
-      fullName: String(getField("full_name")).trim(),
-      phone: String(getField("phone")).trim(),
-      email: String(getField("email")).trim().toLowerCase(),
-      linkedinUrl: String(getField("linkedin_url")).trim(),
-      collegeName: String(getField("college_name")).trim(),
-      collegeLocation: String(getField("college_location")).trim(),
-      preferredDomain: String(getField("preferred_domain")).trim(),
-      languages: String(getField("languages")).trim(),
-      remoteComfort: String(getField("remote_comfort")).trim(),
-      placementContact: String(getField("placement_contact")).trim(),
-      resumeKey,
-      resumeUrl: uploadedResumeUrl || resumeLink || null,
-      consent: 1,
-      status: "PENDING_PAYMENT",
-      selectedDuration: String(getField("selected_duration") || "").trim() || null,
-      selectedAddons: String(getField("selected_addons") || "").trim() || null,
-      amount: Number.isFinite(amount) && amount > 0 ? amount : 499,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const applicationId = uuid();
+    const amount = Number.parseInt(String(form.get("internship_price") || c.env.APPLICATION_FEE_INR || "499"), 10);
+
+    await c.env.DB.prepare(
+      `INSERT INTO applications (
+        id, full_name, phone, email, linkedin_url, college_name, college_location,
+        preferred_domain, languages, remote_comfort, placement_contact,
+        resume_key, resume_url, consent, status,
+        duration_months, selected_addons, internship_price,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        applicationId,
+        String(form.get("full_name")).trim(),
+        String(form.get("phone")).trim(),
+        String(form.get("email")).trim().toLowerCase(),
+        String(form.get("linkedin_url")).trim(),
+        String(form.get("college_name")).trim(),
+        String(form.get("college_location")).trim(),
+        String(form.get("preferred_domain")).trim(),
+        String(form.get("languages")).trim(),
+        String(form.get("remote_comfort")).trim(),
+        String(form.get("placement_contact")).trim(),
+        null,
+        resumeLink,
+        1,
+        "PENDING_PAYMENT",
+        String(form.get("selected_duration") || "").trim() || null,
+        String(form.get("selected_addons") || "").trim() || null,
+        Number.isFinite(amount) && amount > 0 ? amount : 499,
+        nowIso(),
+        nowIso()
+      )
+      .run();
 
     return c.json(
       {
@@ -656,15 +389,20 @@ app.post("/api/payments/create-order", async (c) => {
     }
 
     const paymentId = uuid();
-    const now = nowIso();
-    await upsertRazorpayPaymentRecord(c, {
-      paymentId,
-      applicationId,
-      razorpayOrderId: order.id,
-      amountInRupees,
-      createdAt: now,
-      updatedAt: now,
-    });
+    await c.env.DB.prepare(
+      `INSERT INTO payments (
+        id, application_id, razorpay_order_id, amount, currency, gateway, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 'razorpay', 'pending', ?, ?)
+      ON CONFLICT(application_id) DO UPDATE SET
+        razorpay_order_id = excluded.razorpay_order_id,
+        amount = excluded.amount,
+        currency = excluded.currency,
+        gateway = excluded.gateway,
+        status = 'pending',
+        updated_at = excluded.updated_at`
+    )
+      .bind(paymentId, applicationId, order.id, amountInRupees, "INR", nowIso(), nowIso())
+      .run();
 
     return c.json(
       {
@@ -785,17 +523,20 @@ app.post("/api/payments/payu/initiate", async (c) => {
     const hash = sha512(hashString);
 
     const paymentId = uuid();
-    const now = nowIso();
-    const legacyOrderPlaceholder = `payu_${txnid}`;
-    await upsertPayUPaymentRecord(c, {
-      paymentId,
-      applicationId,
-      payuTxnId: txnid,
-      legacyOrderPlaceholder,
-      amount,
-      createdAt: now,
-      updatedAt: now,
-    });
+    await c.env.DB.prepare(
+      `INSERT INTO payments (
+        id, application_id, gateway, payu_txn_id, amount, currency, status, created_at, updated_at
+      ) VALUES (?, ?, 'payu', ?, ?, 'INR', 'pending', ?, ?)
+      ON CONFLICT(application_id) DO UPDATE SET
+        gateway = 'payu',
+        payu_txn_id = excluded.payu_txn_id,
+        amount = excluded.amount,
+        currency = excluded.currency,
+        status = 'pending',
+        updated_at = excluded.updated_at`
+    )
+      .bind(paymentId, applicationId, txnid, amount, nowIso(), nowIso())
+      .run();
 
     const frontendBase = String(c.env.FRONTEND_BASE_URL || "https://internships.vyntyraconsultancyservices.in").replace(/\/+$/, "");
 
@@ -956,63 +697,6 @@ app.post("/api/payments/razorpay/webhook", async (c) => {
 app.post("/api/payments/payu/webhook", async (c) => {
   // PayU can post similar payloads to callback; reuse callback logic safely.
   return handlePayUCallback(c);
-});
-
-app.get("/api/applications/:id/registration", async (c) => {
-  try {
-    const applicationId = String(c.req.param("id") || "").trim();
-    if (!applicationId) {
-      return c.json({ message: "Application ID is required" }, 400);
-    }
-
-    const appRow = await c.env.DB.prepare(
-      `SELECT id, full_name, status, registration_id
-       FROM applications
-       WHERE id = ?`
-    )
-      .bind(applicationId)
-      .first();
-
-    if (!appRow) {
-      return c.json({ message: "Application not found" }, 404);
-    }
-
-    const payment = await c.env.DB.prepare(
-      `SELECT id, gateway, amount, currency, status, timestamp,
-              razorpay_order_id, razorpay_payment_id,
-              payu_txn_id, payu_payment_id
-       FROM payments
-       WHERE application_id = ?`
-    )
-      .bind(applicationId)
-      .first();
-
-    if (!payment || String(payment.status || "").toLowerCase() !== "completed") {
-      return c.json({ message: "Payment is not completed for this application" }, 400);
-    }
-
-    const registrationId = await ensureApplicationRegistrationId(c.env.DB, applicationId);
-    const gateway = String(payment.gateway || "razorpay").toLowerCase() === "payu" ? "PAYU" : "RAZORPAY";
-    const transactionId = String(payment.razorpay_payment_id || payment.payu_payment_id || payment.payu_txn_id || "").trim() || "N/A";
-    const orderId = String(payment.razorpay_order_id || payment.payu_txn_id || "").trim() || "N/A";
-
-    return c.json({
-      applicantName: String(appRow.full_name || "Applicant"),
-      registrationId,
-      payment: {
-        gateway,
-        amount: Number(payment.amount || 0),
-        currency: String(payment.currency || "INR").toUpperCase(),
-        status: String(payment.status || "completed").toUpperCase(),
-        transactionId,
-        orderId,
-        timestamp: String(payment.timestamp || nowIso()),
-      },
-    });
-  } catch (error) {
-    console.error("/api/applications/:id/registration error", error);
-    return c.json({ message: "Failed to fetch registration details" }, 500);
-  }
 });
 
 app.notFound((c) => {

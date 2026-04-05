@@ -269,9 +269,6 @@ router.post("/payu/initiate", async (req, res, next) => {
       {
         $set: {
           gateway: "payu",
-          // Legacy databases may still enforce unique indexes on razorpayOrderId for null values.
-          // Store a deterministic placeholder so PayU inserts do not collide on null.
-          razorpayOrderId: `payu_${txnid}`,
           payuTxnId: txnid,
           amount: feeAmount,
           currency: "INR",
