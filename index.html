@@ -260,7 +260,7 @@
           <div class="tracks-infographic" aria-label="Technical domains infographic">
             <aside class="tracks-hub" aria-hidden="true">
               <div class="hub-animation-wrapper">
-                <img src="assets/media/video3.gif" alt="Technical Domains" class="hub-animation">
+                <img src="assets/media/video3.gif" alt="Technical Domains" class="hub-animation" />
               </div>
               <div class="hub-core">
                 <span>INFOGRAPHIC</span>
@@ -551,7 +551,7 @@
           <div class="section-heading">
             <p class="eyebrow">Program Pricing</p>
             <h2>Transparent training + internship fees</h2>
-            <p>Program Fee: ₹1,999 for 1.5 Months | ₹2,999 for 2 Months | ₹3,999 for 3 Months (All prices in INR).</p>
+            <p>Transparent pricing, no hidden charges, and a student-first journey you can trust.</p>
           </div>
           <div class="pricing-grid" aria-label="Training and internship pricing plans">
             <article class="pricing-card">
@@ -671,7 +671,7 @@
               </ul>
             </article>
             <article class="team-card">
-              <img src="https://vyntyra-workshops.jamianil37.workers.dev/assets/images/team/anu.jpeg" alt="Anu Sri Metta" />
+              <img src="assets/media/IMG_20260404_232809.jpg" alt="Anu Sri Metta" />
               <h3>Anu Sri Metta</h3>
               <p class="role">R&amp;D Manager &amp; Administration Department</p>
               <p>Leads research, innovation, and the operational backbone.</p>
@@ -799,6 +799,13 @@
               <label>
                 College Location
                 <input type="text" name="college_location" placeholder="City, State" required />
+              </label>
+              <label>
+                Internship Type
+                <select name="program_type" id="program_type" required>
+                  <option value="training" selected>Training + Internship</option>
+                  <option value="free">Free Internship</option>
+                </select>
               </label>
               <label class="preferred-domain-field">
                 Preferred Domain
@@ -1330,221 +1337,6 @@
                   <a href="contact-us.html">Contact</a>
                 </div>
                 <p class="faq-reference-note">For payment questions, always use the official application form and the live checkout flow on this site.</p>
-              </aside>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="reputation" class="reputation-section" aria-labelledby="reputation-title">
-        <style>
-          #reputation {
-            margin: 2rem 0 0;
-          }
-
-          #reputation .reputation-shell {
-            padding: 2rem;
-            border-radius: 2rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background:
-              radial-gradient(circle at 10% 0%, rgba(123, 225, 255, 0.14), transparent 46%),
-              radial-gradient(circle at 88% 92%, rgba(255, 201, 75, 0.12), transparent 44%),
-              rgba(7, 12, 26, 0.86);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 22px 58px rgba(0, 0, 0, 0.32);
-          }
-
-          #reputation .reputation-header {
-            display: grid;
-            gap: 0.8rem;
-            margin-bottom: 1.2rem;
-          }
-
-          #reputation .reputation-header h2 {
-            margin: 0;
-            font-size: clamp(1.7rem, 3.8vw, 2.4rem);
-            line-height: 1.12;
-            background: linear-gradient(135deg, #ffffff 0%, #7be1ff 52%, #ffc94b 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-          }
-
-          #reputation .reputation-header p {
-            margin: 0;
-            color: rgba(247, 249, 255, 0.75);
-            line-height: 1.65;
-          }
-
-          #reputation .reputation-summary {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 0.8rem;
-            margin-bottom: 1rem;
-          }
-
-          #reputation .summary-chip {
-            padding: 0.8rem 0.95rem;
-            border-radius: 1rem;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.04);
-          }
-
-          #reputation .summary-label {
-            display: block;
-            font-size: 0.72rem;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: rgba(247, 249, 255, 0.58);
-          }
-
-          #reputation .summary-value {
-            display: block;
-            margin-top: 0.35rem;
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #fff;
-          }
-
-          #reputation .reputation-layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.9fr);
-            gap: 1rem;
-            align-items: start;
-          }
-
-          #reputation .google-listings,
-          #reputation .google-reviews,
-          #reputation .profiles-directory {
-            padding: 1rem;
-            border-radius: 1.1rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.03);
-          }
-
-          #reputation h3 {
-            margin: 0 0 0.75rem;
-            font-size: 1rem;
-            color: #fff;
-          }
-
-          #reputation .listing-grid,
-          #reputation .review-grid,
-          #reputation .profiles-grid {
-            display: grid;
-            gap: 0.65rem;
-          }
-
-          #reputation .listing-card,
-          #reputation .review-card,
-          #reputation .profile-card {
-            padding: 0.85rem;
-            border-radius: 0.95rem;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(255, 255, 255, 0.04);
-          }
-
-          #reputation .listing-card strong,
-          #reputation .review-card strong,
-          #reputation .profile-card strong {
-            color: #fff;
-          }
-
-          #reputation .listing-meta,
-          #reputation .review-meta,
-          #reputation .profile-note {
-            margin-top: 0.35rem;
-            color: rgba(247, 249, 255, 0.7);
-            font-size: 0.9rem;
-            line-height: 1.55;
-          }
-
-          #reputation .mini-link {
-            margin-top: 0.55rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.42rem 0.7rem;
-            border-radius: 999px;
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            background: rgba(255, 255, 255, 0.05);
-            color: #fff;
-            font-size: 0.8rem;
-            text-decoration: none;
-          }
-
-          #reputation .mini-link:hover {
-            border-color: rgba(255, 201, 75, 0.5);
-          }
-
-          #reputation .review-text {
-            margin-top: 0.4rem;
-            color: rgba(247, 249, 255, 0.74);
-            line-height: 1.6;
-            font-size: 0.92rem;
-          }
-
-          #reputation .source-note {
-            margin-top: 0.8rem;
-            color: rgba(247, 249, 255, 0.62);
-            font-size: 0.85rem;
-          }
-
-          #reputation .is-muted {
-            color: rgba(247, 249, 255, 0.58);
-            font-style: italic;
-          }
-
-          @media (max-width: 980px) {
-            #reputation .reputation-layout {
-              grid-template-columns: 1fr;
-            }
-          }
-
-          @media (max-width: 640px) {
-            #reputation .reputation-shell {
-              padding: 1.3rem;
-              border-radius: 1.4rem;
-            }
-          }
-        </style>
-        <div class="canvas">
-          <div class="reputation-shell">
-            <div class="reputation-header">
-              <p class="eyebrow">Reputation &amp; Presence</p>
-              <h2 id="reputation-title">Live Google reviews and profile directory</h2>
-              <p>This block fetches Google review data from the source API and refreshes automatically. You can also cross-check company presence on major hiring and employer platforms.</p>
-            </div>
-
-            <div class="reputation-summary">
-              <div class="summary-chip">
-                <span class="summary-label">Average Google Rating</span>
-                <span class="summary-value" id="google-rating-summary">Loading...</span>
-              </div>
-              <div class="summary-chip">
-                <span class="summary-label">Total Ratings</span>
-                <span class="summary-value" id="google-rating-count">Loading...</span>
-              </div>
-              <div class="summary-chip">
-                <span class="summary-label">Last Synced</span>
-                <span class="summary-value" id="google-sync-at">Loading...</span>
-              </div>
-            </div>
-
-            <div class="reputation-layout">
-              <div>
-                <div class="google-listings">
-                  <h3>Google Business Listings</h3>
-                  <div class="listing-grid" id="google-business-list"></div>
-                </div>
-                <div class="google-reviews" style="margin-top:0.8rem;">
-                  <h3>Latest Google Reviews</h3>
-                  <div class="review-grid" id="google-review-list"></div>
-                  <p class="source-note" id="google-review-source-note"></p>
-                </div>
-              </div>
-              <aside class="profiles-directory">
-                <h3>Profile Directory</h3>
-                <div class="profiles-grid" id="profile-directory-list"></div>
               </aside>
             </div>
           </div>

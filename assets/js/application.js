@@ -25,7 +25,6 @@ const RAZORPAY_SDK_ID = "razorpay-checkout-sdk";
 const CORE_FIXED_PRICE = 199;
 const VISITOR_COUNT_REFRESH_MS = 20000;
 const VISITOR_TIMESTAMP_REFRESH_MS = 1000;
-const REPUTATION_REFRESH_MS = 10 * 60 * 1000;
 
 // Fee amount in INR
 const APPLICATION_FEE = 499;
@@ -405,194 +404,6 @@ function scheduleAfterPaint(callback) {
   window.setTimeout(callback, 0);
 }
 
-function escapeHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function formatCompactNumber(value) {
-  const numeric = Number(value || 0);
-  if (!Number.isFinite(numeric) || numeric <= 0) {
-    return "0";
-  }
-  return Math.round(numeric).toLocaleString("en-IN");
-}
-
-function buildStars(rating) {
-  const rounded = Math.max(0, Math.min(5, Math.round(Number(rating || 0))));
-  return `${"★".repeat(rounded)}${"☆".repeat(5 - rounded)}`;
-}
-
-function renderBusinessListings(container, businesses) {
-  if (!container) {
-    return;
-  }
-
-  if (!Array.isArray(businesses) || !businesses.length) {
-    container.innerHTML = '<p class="is-muted">Google listing details are not available yet.</p>';
-    return;
-  }
-
-  container.innerHTML = businesses.map((business) => {
-    const safeName = escapeHtml(business.name || "Google Listing");
-    const rating = Number(business.rating || 0);
-    const ratingsCount = formatCompactNumber(business.userRatingsTotal || 0);
-    const mapUrl = business.mapUrl ? escapeHtml(business.mapUrl) : null;
-    const website = business.website ? escapeHtml(business.website) : null;
-    const address = business.address ? escapeHtml(business.address) : "Address not listed";
-
-    return `
-      <article class="listing-card">
-        <strong>${safeName}</strong>
-        <p class="listing-meta">${buildStars(rating)} ${rating ? rating.toFixed(1) : "0.0"} (${ratingsCount} ratings)</p>
-        <p class="listing-meta">${address}</p>
-        ${mapUrl ? `<a class="mini-link" href="${mapUrl}" target="_blank" rel="noreferrer">Open on Google Maps</a>` : ""}
-        ${website ? `<a class="mini-link" href="${website}" target="_blank" rel="noreferrer" style="margin-left:0.4rem;">Website</a>` : ""}
-      </article>
-    `;
-  }).join("");
-}
-
-function renderGoogleReviews(container, businesses) {
-  if (!container) {
-    return;
-  }
-
-  const allReviews = Array.isArray(businesses)
-    ? businesses.flatMap((business) => {
-      const reviews = Array.isArray(business.reviews) ? business.reviews : [];
-      return reviews.map((review) => ({
-        ...review,
-        businessName: business.name || "Vyntyra",
-      }));
-    })
-    : [];
-
-  const sortedReviews = allReviews
-    .sort((a, b) => Number(b.time || 0) - Number(a.time || 0))
-    .slice(0, 8);
-
-  if (!sortedReviews.length) {
-    container.innerHTML = '<p class="is-muted">No recent public Google review text is available to display right now.</p>';
-    return;
-  }
-
-  container.innerHTML = sortedReviews.map((review) => {
-    const author = escapeHtml(review.authorName || "Anonymous");
-    const businessName = escapeHtml(review.businessName || "Vyntyra");
-    const rating = Number(review.rating || 0);
-    const timeLabel = escapeHtml(review.relativeTimeDescription || "Recently");
-    const reviewText = escapeHtml(String(review.text || "").slice(0, 280)) || "No text provided in this review.";
-
-    return `
-      <article class="review-card">
-        <strong>${author}</strong>
-        <p class="review-meta">${buildStars(rating)} ${rating ? rating.toFixed(1) : "0.0"} • ${timeLabel} • ${businessName}</p>
-        <p class="review-text">${reviewText}</p>
-      </article>
-    `;
-  }).join("");
-}
-
-function renderProfileDirectory(container, profiles) {
-  if (!container) {
-    return;
-  }
-
-  if (!Array.isArray(profiles) || !profiles.length) {
-    container.innerHTML = '<p class="is-muted">Profile directory is not available right now.</p>';
-    return;
-  }
-
-  container.innerHTML = profiles.map((profile) => {
-    const safePlatform = escapeHtml(profile.platform || "Profile");
-    const safeUrl = escapeHtml(profile.url || "#");
-    const safeNote = escapeHtml(profile.note || "");
-    const safeType = escapeHtml(profile.type || "link");
-
-    return `
-      <article class="profile-card">
-        <strong>${safePlatform}</strong>
-        <p class="profile-note">${safeNote}</p>
-        <a class="mini-link" href="${safeUrl}" target="_blank" rel="noreferrer">Open ${safeType === "search" ? "Search" : "Profile"}</a>
-      </article>
-    `;
-  }).join("");
-}
-
-async function updateReputationSection() {
-  const ratingSummaryEl = document.getElementById("google-rating-summary");
-  const ratingCountEl = document.getElementById("google-rating-count");
-  const syncAtEl = document.getElementById("google-sync-at");
-  const businessListEl = document.getElementById("google-business-list");
-  const reviewListEl = document.getElementById("google-review-list");
-  const profileListEl = document.getElementById("profile-directory-list");
-  const sourceNoteEl = document.getElementById("google-review-source-note");
-
-  if (!ratingSummaryEl || !ratingCountEl || !syncAtEl || !businessListEl || !reviewListEl || !profileListEl) {
-    return;
-  }
-
-  try {
-    const response = await apiFetch("/reputation/overview", { method: "GET" });
-    if (!response.ok) {
-      throw new Error("Unable to load reputation data");
-    }
-
-    const payload = await readJsonResponse(response, "Unable to load reputation details");
-    const combined = payload?.google?.combined || {};
-    const businesses = Array.isArray(payload?.google?.businesses) ? payload.google.businesses : [];
-    const profiles = Array.isArray(payload?.profiles) ? payload.profiles : [];
-
-    const averageRating = Number(combined.averageRating || 0);
-    ratingSummaryEl.textContent = averageRating > 0
-      ? `${averageRating.toFixed(1)} / 5`
-      : "Not available";
-    ratingCountEl.textContent = formatCompactNumber(combined.totalRatings || 0);
-
-    const generatedAtMs = Date.parse(String(payload?.generatedAt || ""));
-    syncAtEl.textContent = Number.isFinite(generatedAtMs)
-      ? new Date(generatedAtMs).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
-      : "Not available";
-
-    renderBusinessListings(businessListEl, businesses);
-    renderGoogleReviews(reviewListEl, businesses);
-    renderProfileDirectory(profileListEl, profiles);
-
-    const sourceLabel = payload?.autoUpdated
-      ? "Auto-updated from Google Places API."
-      : "Google API key not configured. Showing fallback profile links.";
-    const extraMessage = payload?.message ? ` ${payload.message}` : "";
-    if (sourceNoteEl) {
-      sourceNoteEl.textContent = `${sourceLabel}${extraMessage}`;
-    }
-  } catch (error) {
-    ratingSummaryEl.textContent = "Not available";
-    ratingCountEl.textContent = "Not available";
-    syncAtEl.textContent = "Not available";
-    businessListEl.innerHTML = '<p class="is-muted">Unable to load Google listing details right now.</p>';
-    reviewListEl.innerHTML = '<p class="is-muted">Unable to load Google reviews right now.</p>';
-    profileListEl.innerHTML = '<p class="is-muted">Unable to load profile directory right now.</p>';
-    if (sourceNoteEl) {
-      sourceNoteEl.textContent = "Data refresh failed. Please retry in a few moments.";
-    }
-  }
-}
-
-function setupReputationSection() {
-  const container = document.getElementById("reputation");
-  if (!container) {
-    return;
-  }
-
-  updateReputationSection();
-  setInterval(updateReputationSection, REPUTATION_REFRESH_MS);
-}
-
 function setupSiteChatbot() {
   const launchBtn = document.getElementById("chatbot-launch");
   const panel = document.getElementById("chatbot-panel");
@@ -883,7 +694,6 @@ function setupSiteChatbot() {
 
 document.addEventListener("DOMContentLoaded", () => {
   setupSiteChatbot();
-  setupReputationSection();
 
   const form = document.querySelector(".apply-form");
   const payBtn = document.getElementById("pay-registration-fee-btn");
@@ -1030,9 +840,13 @@ document.addEventListener("DOMContentLoaded", () => {
     payBtn.addEventListener("focus", warmPaymentInfrastructure, { once: true });
     payBtn.addEventListener("touchstart", warmPaymentInfrastructure, { once: true, passive: true });
     payBtn.addEventListener("click", (e) => {
+      const currentScrollY = window.scrollY;
       e.preventDefault();
       e.stopPropagation();
       openPaymentGatewayModal();
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: currentScrollY, left: 0, behavior: "auto" });
+      });
       return false;
     });
     
@@ -1158,6 +972,69 @@ function setupResumeHelpModal() {
       closeModal();
     }
   });
+}
+
+function setupRegistrationSuccessModal() {
+  const modal = document.getElementById("registration-success-modal");
+  if (!modal) return;
+
+  const closeButtons = modal.querySelectorAll("[data-close-registration-success]");
+
+  const closeModal = () => {
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+  };
+
+  closeButtons.forEach((button) => {
+    button.addEventListener("click", closeModal);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && modal.classList.contains("is-open")) {
+      closeModal();
+    }
+  });
+}
+
+function showRegistrationSuccessDetails(details) {
+  const modal = document.getElementById("registration-success-modal");
+  if (!modal) return;
+
+  const greetingEl = document.getElementById("registration-success-greeting");
+  const registrationIdEl = document.getElementById("registration-success-id");
+  const paymentGatewayEl = document.getElementById("registration-success-payment-gateway");
+  const paymentAmountEl = document.getElementById("registration-success-payment-amount");
+  const paymentTransactionEl = document.getElementById("registration-success-transaction-id");
+  const paymentStatusEl = document.getElementById("registration-success-payment-status");
+  const paymentTimeEl = document.getElementById("registration-success-payment-time");
+
+  const applicantName = String(details?.applicantName || "Applicant").trim() || "Applicant";
+  const registrationId = String(details?.registrationId || "N/A").trim() || "N/A";
+  const payment = details?.payment || {};
+
+  const amount = Number(payment?.amount || 0);
+  const amountLabel = amount > 0
+    ? `${String(payment?.currency || "INR").toUpperCase()} ${amount.toLocaleString("en-IN")}`
+    : "N/A";
+  const transactionId = String(payment?.transactionId || payment?.orderId || "N/A").trim() || "N/A";
+  const paymentTimestamp = payment?.timestamp ? new Date(payment.timestamp) : null;
+  const paymentTimeLabel = paymentTimestamp && !Number.isNaN(paymentTimestamp.getTime())
+    ? paymentTimestamp.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })
+    : "N/A";
+
+  if (greetingEl) greetingEl.textContent = `Hi ${applicantName}, your application has been submitted successfully.`;
+  if (registrationIdEl) registrationIdEl.textContent = registrationId;
+  if (paymentGatewayEl) paymentGatewayEl.textContent = String(payment?.gateway || "N/A").toUpperCase();
+  if (paymentAmountEl) paymentAmountEl.textContent = amountLabel;
+  if (paymentTransactionEl) paymentTransactionEl.textContent = transactionId;
+  if (paymentStatusEl) paymentStatusEl.textContent = String(payment?.status || "N/A").toUpperCase();
+  if (paymentTimeEl) paymentTimeEl.textContent = paymentTimeLabel;
+
+  modal.classList.add("is-open");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  modal.querySelector(".resume-help-dialog")?.focus();
 }
 
 /**
@@ -1368,6 +1245,22 @@ async function submitApplication() {
     setFormStatus(statusEl, "Finalizing your application...", "info");
     submitBtn.disabled = true;
 
+    const applicationId = String(applicationData?.applicationId || "").trim();
+    if (!applicationId) {
+      throw new Error("Application reference not found. Please retry payment and submit again.");
+    }
+
+    const registrationResponse = await apiFetch(`/applications/${applicationId}/registration`, {
+      method: "GET",
+    });
+    const registrationData = await readJsonResponse(registrationResponse, "Unable to fetch registration details");
+
+    if (!registrationResponse.ok) {
+      throw new Error(registrationData.message || "Unable to load registration details");
+    }
+
+    showRegistrationSuccessDetails(registrationData);
+
     const form = document.querySelector(".apply-form");
     form?.reset();
     applicationData = {};
@@ -1381,7 +1274,7 @@ async function submitApplication() {
     }
 
     submitBtn.disabled = true;
-    setFormStatus(statusEl, "Application submitted successfully. Confirmation has been recorded.", "success");
+    setFormStatus(statusEl, "Application submitted successfully. Registration details are now available.", "success");
   } catch (error) {
     setFormStatus(statusEl, `Error: ${error.message}`, "error");
     console.error(error);
@@ -1605,3 +1498,4 @@ function setupFormNavigation() {
 // Call on DOM ready
 document.addEventListener("DOMContentLoaded", setupFormNavigation);
 document.addEventListener("DOMContentLoaded", setupResumeHelpModal);
+document.addEventListener("DOMContentLoaded", setupRegistrationSuccessModal);

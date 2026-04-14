@@ -58,8 +58,6 @@ app.use("/api/*", async (c, next) => {
   return corsMw(c, next);
 });
 
-app.use("/api/*", withBindingsValidation);
-
 app.use("/api/*", async (c, next) => {
   await next();
   c.header("Cache-Control", "no-store, no-cache, must-revalidate");
@@ -86,6 +84,7 @@ const ensureVisitorCounterTable = async (db) => {
 
 app.get("/api/metrics/visitors", async (c) => {
   try {
+    if (!c.env.DB) return c.json({ message: "D1 binding DB is missing" }, 500);
     await ensureVisitorCounterTable(c.env.DB);
 
     const row = await c.env.DB.prepare("SELECT total_count FROM visitor_counters WHERE key = ?")
@@ -101,6 +100,7 @@ app.get("/api/metrics/visitors", async (c) => {
 
 app.post("/api/metrics/visitors/hit", async (c) => {
   try {
+    if (!c.env.DB) return c.json({ message: "D1 binding DB is missing" }, 500);
     await ensureVisitorCounterTable(c.env.DB);
 
     await c.env.DB.prepare(
@@ -147,6 +147,8 @@ function isValidHttpUrl(value) {
 }
 
 app.post("/api/applications", async (c) => {
+    if (!c.env.DB) return c.json({ message: "D1 binding DB is missing" }, 500);
+    if (!c.env.RESUMES) return c.json({ message: "R2 binding RESUMES is missing" }, 500);
   try {
     const form = await c.req.formData();
 
@@ -339,6 +341,7 @@ function buildPayUResponseHashString(payload, salt, key) {
 }
 
 app.post("/api/payments/create-order", async (c) => {
+    if (!c.env.DB) return c.json({ message: "D1 binding DB is missing" }, 500);
   try {
     const body = await c.req.json();
     const applicationId = String(body.applicationId || "").trim();
@@ -420,6 +423,7 @@ app.post("/api/payments/create-order", async (c) => {
 });
 
 app.post("/api/payments/verify", async (c) => {
+    if (!c.env.DB) return c.json({ message: "D1 binding DB is missing" }, 500);
   try {
     const body = await c.req.json();
     const razorpayOrderId = String(body.razorpayOrderId || "").trim();
@@ -473,6 +477,7 @@ app.post("/api/payments/verify", async (c) => {
 });
 
 app.post("/api/payments/payu/initiate", async (c) => {
+    if (!c.env.DB) return c.json({ message: "D1 binding DB is missing" }, 500);
   try {
     const body = await c.req.json();
     const applicationId = String(body.applicationId || "").trim();
@@ -569,6 +574,7 @@ app.post("/api/payments/payu/initiate", async (c) => {
 });
 
 async function handlePayUCallback(c) {
+    if (!c.env.DB) return c.json({ message: "D1 binding DB is missing" }, 500);
   try {
     const method = c.req.method.toUpperCase();
     const payload = method === "GET" ? c.req.query() : Object.fromEntries(await c.req.formData());
@@ -634,6 +640,7 @@ app.post("/api/payments/payu/callback", handlePayUCallback);
 app.get("/api/payments/payu/callback", handlePayUCallback);
 
 app.post("/api/payments/razorpay/webhook", async (c) => {
+    if (!c.env.DB) return c.json({ message: "D1 binding DB is missing" }, 500);
   try {
     const bodyText = await c.req.text();
     const signature = String(c.req.header("x-razorpay-signature") || "").trim();
@@ -696,6 +703,7 @@ app.post("/api/payments/razorpay/webhook", async (c) => {
 
 app.post("/api/payments/payu/webhook", async (c) => {
   // PayU can post similar payloads to callback; reuse callback logic safely.
+    if (!c.env.DB) return c.json({ message: "D1 binding DB is missing" }, 500);
   return handlePayUCallback(c);
 });
 
