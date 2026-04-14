@@ -83,7 +83,7 @@ router.get("/visitors", async (_req, res, next) => {
   }
 });
 
-router.post("/visitors/hit", async (_req, res, next) => {
+router.post("/visitors/hit", async (req, res, next) => {
   try {
     const counter = await Counter.findOneAndUpdate(
       { key: VISITOR_COUNTER_KEY },

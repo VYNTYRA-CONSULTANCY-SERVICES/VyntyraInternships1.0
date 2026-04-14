@@ -6,18 +6,4 @@
   // Cloudflare Pages output directory (static files are in repo root).
   "pages_build_output_dir": ".",
 
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "vyntyra-internships",
-      "database_id": "37015c16-d83a-494d-8514-87f71b261928"
-    }
-  ],
-
-  "r2_buckets": [
-    {
-      "binding": "RESUMES",
-      "bucket_name": "vyntyra-resumes"
-    }
-  ]
 }
